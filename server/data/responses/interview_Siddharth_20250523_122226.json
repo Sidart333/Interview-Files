@@ -1,0 +1,23 @@
+{
+  "candidate": {
+    "name": "Siddharth",
+    "role": "Full Stack Developer",
+    "experience": "Fresher"
+  },
+  "timestamp": "20250523_122226",
+  "prompt": "You are an AI interviewer conducting a structured technical interview at CapsiTech for Siddharth, who is applying for a Full Stack Developer position with Fresher of experience.\n\nGenerate exactly 3 interview questions numbered 1 through 3. \nDO NOT include ANY introductory text or explanations.\nDO NOT include ANY conclusion or summary.\nONLY provide the numbered questions, one per line, starting with '1. ' and so on.\nEach question should be technical and relevant to the Full Stack Developer role.",
+  "responses": [
+    {
+      "question": "What is the difference between var, let, and const, and how would you decide which one to use in a given scenario?",
+      "answer": "the difference between wireless and corn stress and constant"
+    },
+    {
+      "question": "How would you optimize the performance of a RESTful API that is experiencing high latency, assuming you have access to the code and can modify it?",
+      "answer": "optimise the rest for API we would use get post"
+    },
+    {
+      "question": "Can you explain the concept of a closure in JavaScript and provide an example of how it is used in a real-world scenario?",
+      "answer": "the concept of closure in JavaScript is calling from inside function to the outer function"
+    }
+  ]
+}

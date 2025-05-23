@@ -1,0 +1,15 @@
+when backend is added then in the test interface paste this
+ 
+fetch(`/api/question/${token}`)
+  .then(res => res.json())
+  .then(data => setQuestion(data.question));
+
+  instead of this
+
+  setTimeout(() => {
+  setQuestion("Tell me about your experience with React.js.");
+}, 1000);
+
+You are an HR interview assistant. Generate ${numQuestions} technical interview questions for a candidate named ${name}, who is applying for a ${role} role and has ${experience} experience. 
+The questions should be job-relevant and vary in difficulty.
+Return the questions as a plain numbered list.
