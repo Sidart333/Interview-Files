@@ -13,7 +13,7 @@ class CheatingDetector:
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh_head = self.mp_face_mesh.FaceMesh(
             refine_landmarks=True,
-            min_detection_confidence=0.5,
+            min_detection_confidence=0.65,
             min_tracking_confidence=0.5,
             max_num_faces=2
         )
@@ -43,7 +43,7 @@ class CheatingDetector:
         self.face_mesh_oc = self.mp_face_mesh.FaceMesh(refine_landmarks=True)
         self.LEFT_EYE_INDICES = [33, 160, 158, 133, 153, 144]
         self.RIGHT_EYE_INDICES = [362, 385, 387, 263, 373, 380]
-        self.EAR_THRESHOLD = 0.25
+        self.EAR_THRESHOLD = 0.17
         self.CLOSED_EYE_TIME_LIMIT = 0.5
         
 
@@ -79,8 +79,8 @@ class CheatingDetector:
         self.warning_timer_start = None
         self.central_message_start = None
 
-        self.WARNING_DIR = Path("warnings")
-        self.WARNING_DIR.mkdir(exist_ok=True)
+        # self.WARNING_DIR = Path("warnings")
+        # self.WARNING_DIR.mkdir(exist_ok=True)
         
         # For frontend polling
         self.last_multiple_faces = False
@@ -136,10 +136,10 @@ class CheatingDetector:
         EAR = (p2_minus_p6 + p3_minus_p5) / (2.0 * p1_minus_p4)
         return EAR
 
-    def process_frame(self, frame):
+    def process_frame(self, frame, candidate_folder=None):
         frame_h, frame_w, _ = frame.shape
         any_alert = False
-
+        
         # Head Tracking
         head_alert = ""
         rgb_head = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -150,8 +150,8 @@ class CheatingDetector:
             cv2.putText(frame, "WARNING: More than one person detected!", (50, frame_h - 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            filename = self.WARNING_DIR / f"multi_person_{timestamp}.jpg"
-            cv2.imwrite(str(filename), frame)
+            filename = os.path.join(candidate_folder, f"multi_person_{timestamp}.jpg")
+            cv2.imwrite(filename, frame)
         else:   
             self.last_multiple_faces = False    
 

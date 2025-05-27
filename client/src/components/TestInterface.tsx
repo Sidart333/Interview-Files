@@ -8,8 +8,10 @@ import {
   Space,
   Alert,
   Divider,
+  Form,
+  Input,
 } from "antd";
-import { FullscreenExitOutlined } from "@ant-design/icons";
+// import { FullscreenExitOutlined } from "@ant-design/icons";
 import ChatboxMicRecorder from "./ChatboxMicRecorder";
 import QuestionReader from "./QuestionReader";
 import axios from "axios";
@@ -36,79 +38,43 @@ const { Title, Text, Paragraph } = Typography;
 
 const TestInterface: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-  const [showCentralWarning, setShowCentralWarning] = useState(false);
+
+  // Only ONE main warning state
+  const [mainWarning, setMainWarning] = useState<string | null>(null);
+
+  // User info and question states
+  const [userInfo, setUserInfo] = useState<{
+    name: string;
+    role: string;
+  } | null>(null);
   const [questions, setQuestions] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [questionAnswerHistory, setQuestionAnswerHistory] = useState<any[]>([]);
   const [isReadyForNextQuestion, setIsReadyForNextQuestion] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [interviewComplete, setInterviewComplete] = useState(false);
   const [questionsLoaded, setQuestionsLoaded] = useState(false);
-  const [showScreenWarning, setShowScreenWarning] = useState(false);
   const [prompt, setPrompt] = useState<string>("");
+
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [userActionWarning, setUserActionWarning] = useState<string | null>(
+    null
+  );
 
   const navigate = useNavigate();
 
   // Only used for demo, pass as props/context in real app
-  const candidateDetails = {
-    name: "Aditya",
-    role: "AI ML ",
-    experience: "1",
-    numQuestions: 3,
-  };
-
-
-  
-  useEffect(() => {
-    // Automatically request fullscreen on mount
-    function launchFullscreen(element: any) {
-      if (element.requestFullscreen) element.requestFullscreen();
-      else if (element.mozRequestFullScreen) element.mozRequestFullScreen();
-      else if (element.webkitRequestFullscreen)
-        element.webkitRequestFullscreen();
-      else if (element.msRequestFullscreen) element.msRequestFullscreen();
-    }
-    launchFullscreen(document.documentElement);
-
-    // Helper: check fullscreen & window size
-    function checkScreen() {
-      const fullscreen = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement
-      );
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      // Show warning if NOT fullscreen or screen is minimized
-      if (!fullscreen || w < 1024 || h < 700) {
-        setShowScreenWarning(true);
-      } else {
-        setShowScreenWarning(false);
-      }
-    }
-
-    checkScreen();
-    window.addEventListener("resize", checkScreen);
-    document.addEventListener("fullscreenchange", checkScreen);
-    document.addEventListener("webkitfullscreenchange", checkScreen); // Safari
-    document.addEventListener("mozfullscreenchange", checkScreen);
-    document.addEventListener("MSFullscreenChange", checkScreen);
-
-    return () => {
-      window.removeEventListener("resize", checkScreen);
-      document.removeEventListener("fullscreenchange", checkScreen);
-      document.removeEventListener("webkitfullscreenchange", checkScreen);
-      document.removeEventListener("mozfullscreenchange", checkScreen);
-      document.removeEventListener("MSFullscreenChange", checkScreen);
-    };
-  }, []);
-  
+  // const candidateDetails = {
+  //   name: "Virendra",
+  //   role: "software developer",
+  //   experience: "3",
+  //   numQuestions: 3,
+  // };
 
   // Camera startup
   useEffect(() => {
+    if (!userInfo) return; // Do not start camera until user info entered!
     let stream: MediaStream;
     const startCamera = async () => {
       try {
@@ -117,19 +83,21 @@ const TestInterface: React.FC = () => {
           videoRef.current.srcObject = stream;
         }
       } catch {
-        setWarning("Failed to access the camera.");
+        setUserActionWarning("Failed to access the camera.");
       }
     };
     startCamera();
     return () => {
       if (stream) stream.getTracks().forEach((t) => t.stop());
     };
-  }, []);
+  }, [userInfo]);
+  
 
-  // Frame capture + warning logic (single interval)
+  // ---- Main proctoring warning logic (SINGLE generic warning) ----
   useEffect(() => {
-    let warningTimer: NodeJS.Timeout | null = null;
-    let lastWarningType = "";
+    if (!userInfo) return; // Don't start proctoring until user info is entered
+
+    let warningTimeout: NodeJS.Timeout | null = null;
 
     const captureAndSendFrame = async () => {
       const video = videoRef.current;
@@ -144,106 +112,69 @@ const TestInterface: React.FC = () => {
         try {
           const res = await axios.post(
             "http://localhost:5000/process_frame",
-            { image: base64Image },
+            { image: base64Image, candidateName: userInfo.name },
             { headers: { "Content-Type": "application/json" } }
           );
           const data: WarningData = res.data as WarningData;
-          let warningMsg = "";
-          let detectedType = "";
 
-          if (data.multiple_faces) {
-            warningMsg += "⚠️ More than one face detected. ";
-            detectedType = "multiple_faces";
-          }
-          if (data.head_alert && data.head_alert.includes("ALERT")) {
-            warningMsg += "⚠️ Head Movement Alert. ";
-            detectedType = "head";
-          }
-          if (data.eye_lr_alert && data.eye_lr_alert.includes("ALERT")) {
-            warningMsg += "⚠️ Suspicious Eye (LR) Movement. ";
-            detectedType = "eye_lr";
-          }
-          if (data.eye_ud_alert && data.eye_ud_alert.includes("ALERT")) {
-            warningMsg += "⚠️ Suspicious Eye (UD) Movement. ";
-            detectedType = "eye_ud";
-          }
-          if (data.eye_oc_alert && data.eye_oc_alert.includes("ALERT")) {
-            warningMsg += "⚠️ Eyes Closed Alert. ";
-            detectedType = "eye_oc";
-          }
+          // Simple: if any type of warning is present, show "WARNING" (no details)
+          const anyWarning =
+            data.multiple_faces ||
+            (data.head_alert && data.head_alert.includes("ALERT")) ||
+            (data.eye_lr_alert && data.eye_lr_alert.includes("ALERT")) ||
+            (data.eye_ud_alert && data.eye_ud_alert.includes("ALERT")) ||
+            (data.eye_oc_alert && data.eye_oc_alert.includes("ALERT"));
 
-          if (warningMsg) {
-            setWarning(warningMsg);
-
-            // Show central warning after 5s of continuous detection
-            if (lastWarningType !== detectedType) {
-              lastWarningType = detectedType;
-              setShowCentralWarning(false);
-              if (warningTimer) clearTimeout(warningTimer);
-              warningTimer = setTimeout(() => {
-                setShowCentralWarning(true);
-                setTimeout(() => setShowCentralWarning(false), 2000);
-              }, 2000);
-            }
+          if (anyWarning) {
+            setMainWarning("WARNING"); // Show only main "WARNING"
           } else {
-            setWarning(null);
-            setShowCentralWarning(false);
-            if (warningTimer) clearTimeout(warningTimer);
-            lastWarningType = "";
+            setMainWarning(null); // Hide when no warning
           }
         } catch {
-          setWarning("Connection lost. Check your network.");
+          setUserActionWarning("Connection lost. Check your network.");
         }
       }
     };
 
-    const interval = setInterval(captureAndSendFrame, 1000);
+    const interval = setInterval(captureAndSendFrame, 200);
+
     return () => {
       clearInterval(interval);
-      if (warningTimer) clearTimeout(warningTimer);
+      if (warningTimeout) clearTimeout(warningTimeout);
     };
-  }, []);
+  }, [userInfo]);
 
-  // Interview question fetch
+  // Interview question fetch -- only when userInfo is set!
   useEffect(() => {
-    const fetchQuestions = async () => {
-      setIsLoading(true);
-      try {
-        const res = await axios.post<{
-          questions: string[];
-          prompt: string;
-        }>("http://localhost:5000/generate-questions", candidateDetails, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
+    if (!userInfo) return;
+    setIsLoading(true);
+    axios
+      .post<{ questions: string[]; prompt: string }>(
+        "http://localhost:5000/generate-questions",
+        {
+          name: userInfo.name,
+          role: userInfo.role, // You can add more fields if you want
+          numQuestions: 5,
+        },
+        { headers: { "Content-Type": "application/json" } }
+      )
+      .then((res) => {
         const { questions: fetchedQs, prompt: fetchedPrompt } = res.data;
         if (fetchedQs?.length) {
           setQuestions(fetchedQs);
           setPrompt(fetchedPrompt);
           setQuestionsLoaded(true);
         } else {
-          setWarning("No questions returned from API.");
+          setUserActionWarning("No questions returned from API.");
         }
-      } catch {
-        setWarning("Failed to fetch interview questions.");
-      } finally {
+      })
+      .catch(() => {
+        setUserActionWarning("Failed to fetch interview questions.");
+      })
+      .then(() => {
         setIsLoading(false);
-      }
-    };
-    fetchQuestions();
-    // eslint-disable-next-line
-  }, []);
-
-  const resetInterview = () => {
-    setInterviewComplete(false);
-    setCurrentIndex(0);
-    setQuestionAnswerHistory([]);
-    setIsReadyForNextQuestion(false);
-    setQuestionsLoaded(false);
-    setPrompt("");
-  };
+      });
+  }, [userInfo]);
 
   const handleAnswerSubmission = (answerText: string) => {
     const currentQuestion = questions[currentIndex];
@@ -254,16 +185,15 @@ const TestInterface: React.FC = () => {
 
   const handleNextQuestion = () => {
     if (!isReadyForNextQuestion) {
-      setWarning("Please complete the current question first.");
+      setUserActionWarning("Please complete the current question first.");
       return;
     }
-
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setIsReadyForNextQuestion(false);
+      setUserActionWarning(null);
       return;
     }
-
     setInterviewComplete(true);
     saveInterviewResponses().finally(() => {
       navigate("/feedback");
@@ -277,30 +207,109 @@ const TestInterface: React.FC = () => {
         success: boolean;
         filePath: string;
       }
-
+      // Use userInfo instead of candidateDetails for saving
       const res = await axios.post<SaveResponsesResponse>(
         "http://localhost:5000/save-responses",
         {
-          candidateName: candidateDetails.name,
-          role: candidateDetails.role,
-          experience: candidateDetails.experience,
+          candidateName: userInfo?.name,
+          role: userInfo?.role,
+          experience: "",
           prompt,
           responses: questionAnswerHistory,
         }
       );
-
       if (!res.data.success) {
-        setWarning("Failed to save interview responses");
+        setUserActionWarning("Failed to save interview responses");
       }
-      // (You can show a success notification here if you wish)
     } catch {
-      setWarning("Failed to save interview responses to file");
+      setUserActionWarning("Failed to save interview responses to file");
     } finally {
       setIsSaving(false);
     }
   };
 
   const antIcon = <LoadingOutlined style={{ fontSize: 24 }} spin />;
+
+  // === 🟢 User entry form ===
+  if (!userInfo) {
+    return (
+      <Layout style={{ minHeight: "100vh", position: "relative" }}>
+        <Header
+          style={{
+            background: "linear-gradient(to right, #1890ff, #096dd9)",
+            padding: "0 24px",
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <CameraOutlined
+              style={{ color: "white", fontSize: 24, marginRight: 12 }}
+            />
+            <Title level={3} style={{ margin: 0, color: "white" }}>
+              AI Interview Assistant
+            </Title>
+          </div>
+        </Header>
+        <Content
+          style={{
+            minHeight: "calc(100vh - 70px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            background: "#f0f2f5",
+          }}
+        >
+          <Card style={{ width: 400 }}>
+            <Title level={3} style={{ textAlign: "center" }}>
+              Enter Your Details
+            </Title>
+            <Form layout="vertical" onFinish={(values) => setUserInfo(values)}>
+              <Form.Item
+                label="Full Name"
+                name="name"
+                rules={[{ required: true, message: "Enter your name!" }]}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item
+                label="Role/Job"
+                name="role"
+                rules={[{ required: true, message: "Enter role/job!" }]}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  loading={isLoading}
+                >
+                  Continue
+                </Button>
+              </Form.Item>
+            </Form>
+          </Card>
+        </Content>
+        <Footer
+          style={{
+            textAlign: "center",
+            background: "#f0f2f5",
+          }}
+        >
+          <Text type="secondary">
+            AI Interview Assistant © {new Date().getFullYear()}
+          </Text>
+        </Footer>
+      </Layout>
+    );
+  }
 
   return (
     <Layout style={{ minHeight: "100vh", position: "relative" }}>
@@ -326,11 +335,31 @@ const TestInterface: React.FC = () => {
             AI Interview Assistant
           </Title>
         </div>
-        <Text style={{ color: "white" }}>{candidateDetails.name}</Text>
+        <Text style={{ color: "white" }}>{userInfo?.name}</Text>
+        {/* <Text style={{ color: "white" }}>{candidateDetails.name}</Text> */}
       </Header>
 
-      {/* Warning Alert */}
-      {warning && (
+      {/* ---- Main (single) Warning Message ---- */}
+      {userActionWarning ? (
+        <div
+          style={{
+            position: "fixed",
+            top: 80,
+            right: 30,
+            zIndex: 10000,
+            width: 340,
+            maxWidth: "90vw",
+          }}
+        >
+          <Alert
+            message={userActionWarning}
+            type="error"
+            showIcon
+            banner
+            style={{ marginBottom: 12 }}
+          />
+        </div>
+      ) : mainWarning ? (
         <div
           style={{
             position: "fixed",
@@ -341,54 +370,9 @@ const TestInterface: React.FC = () => {
             maxWidth: "90vw",
           }}
         >
-          {showCentralWarning && (
-            <div
-              style={{
-                position: "fixed",
-                top: 40,
-                left: 0,
-                width: "100vw",
-                height: "0",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "flex-start",
-                zIndex: 20000,
-                pointerEvents: "none",
-              }}
-            >
-              <span
-                style={{
-                  color: "#d0021b",
-                  fontWeight: "bold",
-                  fontSize: "48px",
-                  background: "rgba(255,255,255,0.95)",
-                  padding: "20px 56px",
-                  borderRadius: "20px",
-                  border: "4px solid #d0021b",
-                  boxShadow: "0 0 30px rgba(208,2,27,0.10)",
-                  letterSpacing: "2px",
-                  marginTop: 0,
-                }}
-              >
-                WARNING
-              </span>
-            </div>
-          )}
-
-          <Alert
-            message={warning}
-            type="warning"
-            showIcon
-            banner
-            style={{
-              borderRadius: 8,
-              fontWeight: 500,
-              fontSize: 16,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-            }}
-          />
+          <Alert message={mainWarning} type="warning" showIcon banner />
         </div>
-      )}
+      ) : null}
 
       {/* Progress Bar - Fixed at far left */}
       <div
@@ -442,13 +426,7 @@ const TestInterface: React.FC = () => {
           minHeight: "calc(100vh - 64px - 70px)",
         }}
       >
-        <div
-          style={{
-            maxWidth: "800px",
-            width: "100%",
-            marginTop: "32px",
-          }}
-        >
+        <div style={{ maxWidth: "800px", width: "100%", marginTop: "32px" }}>
           <Card
             title={
               <Space>
@@ -500,7 +478,7 @@ const TestInterface: React.FC = () => {
                 <Divider orientation="left">Your Response</Divider>
 
                 <ChatboxMicRecorder
-                  key={`question-${currentIndex}`}
+                  key={`questions-${currentIndex}`}
                   onAnswer={handleAnswerSubmission}
                 />
               </>

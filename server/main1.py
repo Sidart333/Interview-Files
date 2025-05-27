@@ -19,9 +19,9 @@ if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
 TESTS_JSON = os.path.join(DATA_DIR, "tests.json")
-RESPONSES_DIR = os.path.join(DATA_DIR, "responses")
-if not os.path.exists(RESPONSES_DIR):
-    os.makedirs(RESPONSES_DIR)
+# RESPONSES_DIR = os.path.join(DATA_DIR, "responses")
+# if not os.path.exists(RESPONSES_DIR):
+#     os.makedirs(RESPONSES_DIR)
 
 # Instantiate the CheatingDetector
 detector = CheatingDetector()
@@ -50,14 +50,22 @@ def process_frame_api():
     data = request.get_json()
     print("Incoming JSON:", data)
     img_data = None
+    candidate_name = None
+    candidate_folder = None
+    
     if data:
         img_data = data.get('image')
+        candidate_name = data.get('candidateName')
+        
+        
     print("Received image (first 100 chars):", img_data[:100] if img_data else None)
     if not img_data:
         return jsonify({'error': 'No image provided'}), 400
+    
+    if "," in img_data:
+        img_data = img_data.split(",")[1]
+    
     img_data = data.get('image') # The base64 image string sent from the frontend
-    
-    
     
 
     if not img_data:
@@ -72,9 +80,15 @@ def process_frame_api():
         frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
     except Exception as e:
         return jsonify({'error': 'Invalid image data'}), 400
+    
+    if candidate_name:
+        safe_name = candidate_name.replace(" ", "_")
+        candidate_folder = os.path.join("data", "candidates", safe_name)
+        os.makedirs(candidate_folder, exist_ok=True)
+    else:
+        candidate_folder = None
 
-    # Process frame with your detector
-    processed_frame = detector.process_frame(frame)
+    processed_frame = detector.process_frame(frame, candidate_folder=candidate_folder)
 
     # Prepare the response using last_* attributes set by your detection code
     response = {
@@ -122,26 +136,26 @@ def generate_questions():
     data = request.get_json()
     name = data.get('name')
     role = data.get('role')
-    experience = data.get('experience')
-    num_questions = data.get('numQuestions', 3)
+    num_questions = data.get('numQuestions', 5)
 
-    if not name or not role or not experience or not num_questions:
-        return jsonify({"error": "Missing required fields."}), 400
+    if not name or not role:
+        return jsonify({"error": "Missing required fields (name/role)."}), 400
+    if not num_questions:
+        num_questions = 3
 
     prompt = (
-        f"You are an AI interviewer conducting a structured technical interview at CapsiTech for {name}, "
-        f"who is applying for a {role} position with {experience} of experience.\n\n"
-        f"Generate exactly {num_questions} interview questions numbered 1 through {num_questions}. \n"
-        f"DO NOT include ANY introductory text or explanations.\n"
-        f"DO NOT include ANY conclusion or summary.\n"
-        f"ONLY provide the numbered questions, one per line, starting with '1. ' and so on.\n"
-        f"Each question should be technical and relevant to the {role} role."
-    )
+    f"You are an AI interviewer. Your candidate's name is {name}. "
+    f"They are applying for the position of {role}.\n"
+    f"Generate exactly {num_questions} technical interview questions numbered 1 through {num_questions}. "
+    f"Do NOT include any introduction or conclusion. "
+    f"ONLY provide the numbered questions, one per line, starting with '1. ' and so on. "
+    f"All questions must be technical and directly relevant to the {role} role."
+)
 
     try:
         client = openai.OpenAI(
             base_url="https://api.groq.com/openai/v1",
-            api_key="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"
+            api_key="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"
         )
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -159,6 +173,7 @@ def generate_questions():
 
     # Just in case - unreachable, but prevents 'missing return' warning
     return jsonify({"error": "Unknown error occurred"}), 500
+
 
 
 
@@ -197,13 +212,17 @@ def save_responses():
     experience = data.get("experience")
     prompt = data.get("prompt")
     responses = data.get("responses")
+    
+    safe_name = candidateName.replace(' ', '_')
+    candidate_folder = os.path.join("data", "candidates", safe_name)
+    os.makedirs(candidate_folder, exist_ok=True)
 
     if not candidateName or not responses:
         return jsonify({ "error": "Invalid data format" }), 400
 
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"interview_{candidateName.replace(' ', '_')}_{timestamp}.json"
-    filepath = os.path.join(RESPONSES_DIR, filename)
+    filename = f"interview_{safe_name}_{timestamp}.json"
+    filepath = os.path.join(candidate_folder, filename)
 
     interview_data = {
         "candidate": {
@@ -241,16 +260,16 @@ def submit_feedback():
         json.dump(feedback_list, f, indent=2)
     return jsonify({ "success": True })
 
-@app.route('/get_warning', methods=['GET'])
-def get_warning():
-    warning_data = {
-        "multiple_faces": detector.last_multiple_faces,
-        "head_alert": detector.last_head_alert,
-        "eye_lr_alert": detector.last_eye_lr_alert,
-        "eye_ud_alert": detector.last_eye_ud_alert,
-        "eye_oc_alert": detector.last_eye_oc_alert,
-    }
-    return jsonify(warning_data)
+# @app.route('/get_warning', methods=['GET'])
+# def get_warning():
+#     warning_data = {
+#         "multiple_faces": detector.last_multiple_faces,
+#         "head_alert": detector.last_head_alert,
+#         "eye_lr_alert": detector.last_eye_lr_alert,
+#         "eye_ud_alert": detector.last_eye_ud_alert,
+#         "eye_oc_alert": detector.last_eye_oc_alert,
+#     }
+#     return jsonify(warning_data)
 
 # -- Other endpoints for generating questions, saving config, etc. -- #
 # (unchanged from your code above, can copy as needed)

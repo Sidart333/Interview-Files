@@ -29,6 +29,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { ProgressHeader } from "./ProgressHeader";
+import  EdgeDots from "./EdgeDots";
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -52,6 +53,14 @@ const stepDirections = [
   { text: "RIGHT", icon: <ArrowRightOutlined /> },
   { text: "TOP", icon: <ArrowUpOutlined /> },
   { text: "BOTTOM", icon: <ArrowDownOutlined /> },
+];
+
+const calibrationStepToDot = [
+  null, // 0: CENTER (not an edge dot)
+  1, // 1: LEFT  -> EdgeDots[1]
+  2, // 2: RIGHT -> EdgeDots[2]
+  0, // 3: TOP   -> EdgeDots[0]
+  3, // 4: BOTTOM-> EdgeDots[3]
 ];
 
 const HeadCalibration = () => {
@@ -434,6 +443,14 @@ const HeadCalibration = () => {
 
   return (
     <Layout style={{ minHeight: "100vh", background: "#f5f7fa" }}>
+      <EdgeDots
+        active={
+          currentStepIndex === 0
+            ? -1 // or undefined, to show center if you want
+            : calibrationStepToDot[currentStepIndex] ?? undefined
+        }
+      />
+
       <Header
         style={{
           background: "linear-gradient(135deg, #1890ff 0%, #096dd9 100%)",

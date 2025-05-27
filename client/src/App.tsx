@@ -9,9 +9,9 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/test/:token" element={<UserDashboard />} />
-        <Route path="/calibration" element={<HeadCalibration />} />
+        {/* <Route path="/admin" element={<AdminDashboard />} /> */}
+        {/* <Route path="/test/:token" element={<UserDashboard />} /> */}
+        <Route path="/calibration/:token" element={<HeadCalibration />} />
         <Route path="/test/:token/interview" element={<TestInterface />} />
         <Route path='/feedback' element={<FeedbackPage /> } />
       </Routes>
