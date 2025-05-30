@@ -39,10 +39,10 @@ const { Title, Text, Paragraph } = Typography;
 const TestInterface: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Only ONE main warning state
+
   const [mainWarning, setMainWarning] = useState<string | null>(null);
 
-  // User info and question states
+
   const [userInfo, setUserInfo] = useState<{
     name: string;
     role: string;
@@ -56,8 +56,9 @@ const TestInterface: React.FC = () => {
   const [interviewComplete, setInterviewComplete] = useState(false);
   const [questionsLoaded, setQuestionsLoaded] = useState(false);
   const [prompt, setPrompt] = useState<string>("");
-
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [tabOutWarning, setTabOutWarning] = useState(false);
+  const tabOutTimestamp = useRef<number | null>(null);
   const [userActionWarning, setUserActionWarning] = useState<string | null>(
     null
   );
@@ -71,6 +72,40 @@ const TestInterface: React.FC = () => {
   //   experience: "3",
   //   numQuestions: 3,
   // };
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        tabOutTimestamp.current = Date.now();
+        setTabOutWarning(true);
+      }
+      if (document.visibilityState === "visible") {
+        setTabOutWarning(false);
+
+        if (tabOutTimestamp.current) {
+          const now = Date.now();
+          const secondsAway = (now - tabOutTimestamp.current) / 1000;
+          tabOutTimestamp.current = null;
+          if (secondsAway > 2) {
+            setTabSwitchCount((prev) => {
+              const newCount = prev + 1;
+              if (userInfo && userInfo.name) {
+                axios.post('http://localhost:5000/tab-switch', {
+                  candidateName: userInfo.name,
+                  tabSwitchCount: newCount,
+                });
+              }
+              return newCount;
+            })
+          }
+        }
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [userInfo])
+
 
   // Camera startup
   useEffect(() => {
@@ -339,6 +374,24 @@ const TestInterface: React.FC = () => {
         {/* <Text style={{ color: "white" }}>{candidateDetails.name}</Text> */}
       </Header>
 
+      {tabOutWarning && (
+        <div
+          style={{
+            position: "fixed",
+            top: 80,
+            left: 30,
+            zIndex: 10000,
+            width: 340,
+            maxWidth: "90vw",
+          }}
+        >
+          <Alert message="⚠️ Warning: You have left the test tab. Please return immediately!"
+            type="error"
+            showIcon
+            banner
+          style={{ marginBottom: 12}}/>
+        </div>
+      )}
       {/* ---- Main (single) Warning Message ---- */}
       {userActionWarning ? (
         <div

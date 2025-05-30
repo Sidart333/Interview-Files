@@ -29,7 +29,7 @@ const WaveformVisualizer: React.FC<WaveformVisualizerProps> = ({
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
 
-    canvas.width = 400;
+    canvas.width = 200;
     canvas.height = 100;
 
     const draw = () => {

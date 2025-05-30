@@ -2,6 +2,7 @@ from flask import Flask, Response, render_template, jsonify, request
 import cv2
 from cheating import CheatingDetector
 from flask_cors import CORS
+from flask_mail import Mail, Message
 import uuid 
 import os
 import json
@@ -10,6 +11,11 @@ import openai
 import re
 import numpy as np
 import base64
+import tempfile
+import whisper
+from flask import send_file
+
+OPENAI_API_KEY = "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"
 
 app = Flask(__name__)
 CORS(app)
@@ -44,6 +50,17 @@ detector = CheatingDetector()
 # @app.route('/video_feed')
 # def video_feed():
 #     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+# Configure Flask-Mail
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'Siddharth Singh Panwar'      # Replace with your email
+app.config['MAIL_PASSWORD'] = 'mkuw gipa gjff eagj'         # Use app-specific password
+app.config['MAIL_DEFAULT_SENDER'] = 'siddharthsinghpanwar01@gmail.com'
+
+mail = Mail(app)
 
 @app.route('/process_frame', methods=['POST'])
 def process_frame_api():
@@ -105,6 +122,16 @@ def process_frame_api():
 
     return jsonify(response)
 
+# @app.route('/send-test-email')
+# def send_test_email():
+#     msg = Message(
+#         subject="Test Email from Flask",
+#         recipients=['siddharth.panwar@capsitech.com'],  # Try with your own alternate email
+#         body="Hello! This is a test email sent from Flask-Mail setup.",
+#     )
+#     mail.send(msg)
+#     return "Email sent!"
+
 @app.route('/advance_calibration', methods=['POST'])
 def advance_calibration():
     detector.advance_calibration()
@@ -129,7 +156,89 @@ def start_tracking():
     detector.start_tracking()
     return 'OK'
 
+@app.route('/transcribe', methods=['POST'])
+def transcribe_audio():
+    if 'audio' not in request.files:
+        print("No audio uploaded!")
+        return jsonify({'transcript': '', 'error': 'No audio uploaded!'}), 400
+    audio_file = request.files['audio']
+    print("Received file:", audio_file.filename)
+    # Save audio temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
+        audio_file.save(temp_audio)
+        temp_audio_path = temp_audio.name
 
+    transcript = ""
+    error_msg = ""
+    try:
+        model = whisper.load_model("base")
+        print(f"Transcribing: {temp_audio_path}")
+        result = model.transcribe(temp_audio_path)
+        print("Transcript:", result["text"])
+        transcript = result["text"]
+    except Exception as e:
+        print("Transcription error:", str(e))
+        error_msg = str(e)
+    finally:
+        if os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
+
+    return jsonify({'transcript': transcript, 'error': error_msg})
+
+@app.route('/tab-switch', methods=['POST'])
+def tab_switch():
+    data = request.get_json()
+    candidate_name = data.get('candidateName')
+    tab_switch_count = data.get('tabSwitchCount')
+
+    if not candidate_name:
+        return jsonify({"error": "Missing candidate name"}), 400
+
+    safe_name = candidate_name.replace(' ', '_')
+    candidate_folder = os.path.join("data", "candidates", safe_name)
+    os.makedirs(candidate_folder, exist_ok=True)
+
+    warning_file = os.path.join(candidate_folder, "warning_count.json")
+    # Read the existing warning count, if present
+    if os.path.exists(warning_file):
+        with open(warning_file, "r") as f:
+            counts = json.load(f)
+    else:
+        counts = {}
+
+    # Update tab switch count (don't overwrite warning_count)
+    counts['tab_switch_count'] = tab_switch_count
+    with open(warning_file, "w") as f:
+        json.dump(counts, f)
+
+    return jsonify({"message": "Tab switch count updated"})
+ 
+
+@app.route('/tts', methods=['POST'])
+def tts():
+    data = request.json
+    text = data.get("text")
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+
+    try:
+        # Use OpenAI's TTS endpoint (as of 2024)
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        response = client.audio.speech.create(
+            model="tts-1",  # or "tts-1-hd" for even higher quality
+            voice="onyx",   # other options: 'alloy', 'echo', 'fable', 'nova', 'shimmer'
+            input=text
+        )
+        mp3_data = response.content
+
+        # Save to temp file
+        temp_path = "/tmp/tts_output.mp3"
+        with open(temp_path, "wb") as f:
+            f.write(mp3_data)
+        return send_file(temp_path, mimetype="audio/mpeg")
+    except Exception as e:
+        print("TTS error:", str(e))
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/generate-questions', methods=['POST'])
 def generate_questions():
@@ -179,9 +288,12 @@ def generate_questions():
 
 @app.route('/save-test-config', methods=['POST'])
 def save_test_config():
-    test_data = request.json
+    data = request.get_json()
     token = str(uuid.uuid4())[:8]
-    test_entry = { "token": token, **test_data }
+    candidate_name = data.get('name')
+    candidate_email = data.get('email')
+    test_entry = { "token": token, **data }
+
     # Save to tests.json (list of all tests)
     if os.path.exists(TESTS_JSON):
         with open(TESTS_JSON, "r") as f:
@@ -191,7 +303,31 @@ def save_test_config():
     tests.append(test_entry)
     with open(TESTS_JSON, "w") as f:
         json.dump(tests, f, indent=2)
-    return jsonify({ "message": "Test config saved", "token": token })
+
+    # Generate test link
+    link = f"http://localhost:3000/user-test?token={token}"  # Replace with your domain in prod
+
+    # Send the email
+    email_sent = False
+    try:
+        msg = Message(
+            subject="Your Interview Test Link",
+            recipients=[candidate_email],
+            html=f"""
+                <p>Hi {candidate_name},</p>
+                <p>Thank you for your interest. Please click the link below to begin your interview test:</p>
+                <p><a href="{link}">{link}</a></p>
+                <p>Good luck!</p>
+            """
+        )
+        mail.send(msg)
+        email_sent = True
+    except Exception as e:
+        print("Failed to send email:", e)
+
+    # Return link and status for frontend
+    return jsonify({ "link": link, "emailSent": email_sent })
+
 
 @app.route('/get-test-config/<token>', methods=['GET'])
 def get_test_config(token):

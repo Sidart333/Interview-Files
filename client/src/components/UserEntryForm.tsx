@@ -75,14 +75,14 @@ const UserEntryForm = () => {
     fetchConfig();
   }, [token]);
 
-  const onFinish = (values: any) => {
+  const onFinish = (values: any ) => {
     setSubmitting(true);
     const fullData = { ...candidateData, ...values };
     axios
       .post("http://localhost:5000/save-test-config", fullData)
       .then(() => {
         message.success("Details successfully submitted!");
-        navigate("/calibration", { replace: true });
+        navigate("/calibration/", { replace: true });
       })
       .catch(() => {
         message.error("Failed to submit details. Please try again later.");

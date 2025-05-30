@@ -7,9 +7,16 @@ from threading import Lock
 from pathlib import Path
 import datetime
 import os
+import json
 
 class CheatingDetector:
     def __init__(self):
+        
+        self.warning_count = 0
+        self.warning_active_start = None
+        self.last_saved_warning_count = 0
+        
+        
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh_head = self.mp_face_mesh.FaceMesh(
             refine_landmarks=True,
@@ -139,7 +146,8 @@ class CheatingDetector:
     def process_frame(self, frame, candidate_folder=None):
         frame_h, frame_w, _ = frame.shape
         any_alert = False
-        
+                          
+                              
         # Head Tracking
         head_alert = ""
         rgb_head = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -336,6 +344,22 @@ class CheatingDetector:
             (w, h), _ = cv2.getTextSize(warning_text, font, wf, wt)
             cx, cy = (frame_w - w) // 2, (frame_h + h) // 2
             cv2.putText(frame, warning_text, (cx, cy), font, wf, (0, 0, 255), wt)
+        
+        now = time.time()
+        print("any_alert:", any_alert)
+        if any_alert:
+            if self.warning_active_start is None:
+                self.warning_active_start = now
+            elif now - self.warning_active_start >= 3:
+                self.warning_count += 1
+                self.warning_active_start = None
+                
+                if candidate_folder:
+                    warning_file = os.path.join(candidate_folder, "warning_count.json")
+                    with open(warning_file, "w") as f:
+                        json.dump({"warning_count": self.warning_count}, f)
+        else:
+            self.warning_active_start = None     
         
         return frame
 

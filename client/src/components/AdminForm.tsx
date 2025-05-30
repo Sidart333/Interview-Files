@@ -8,6 +8,7 @@ import {
   Select,
   Card,
   Alert,
+  message
 } from "antd";
 import axios from "axios";
 
@@ -15,16 +16,31 @@ const { Header, Content, Sider } = Layout;
 const { Title, Paragraph } = Typography;
 
 
+interface SaveTestConfigResponse{
+  link: string;
+  emailSent: boolean;
+}
 const AdminForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   const onFinish = async (values: any) => {
+    setError(null)
+    setGeneratedLink(null)
     try {
-      const res = await axios.post("/api/save-test-config", values, {
+      const res = await axios.post<SaveTestConfigResponse>("http://localhost:5000/api/save-test-config", values, {
         headers: { "Content-Type": "application/json" }
       });
+      const { link, emailSent } = res.data;
+
+      setGeneratedLink(link)
+
+      if (emailSent) {
+        message.success("Test link generated and sent to candidate's email.");
+      } else {
+        message.warning("Link generated, but email could not be sent.");
+      }
   
       console.log("Saved! Response:", res.data);
 
