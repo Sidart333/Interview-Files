@@ -29,7 +29,7 @@ const AdminForm: React.FC = () => {
     setError(null)
     setGeneratedLink(null)
     try {
-      const res = await axios.post<SaveTestConfigResponse>("http://localhost:5000/api/save-test-config", values, {
+      const res = await axios.post<SaveTestConfigResponse>("http://localhost:5000/save-test-config", values, {
         headers: { "Content-Type": "application/json" }
       });
       const { link, emailSent } = res.data;
@@ -131,9 +131,14 @@ const AdminForm: React.FC = () => {
                     <Select.Option value="web-dev">
                       Web Development
                     </Select.Option>
-                    <Select.Option value="ai-ml">AI / ML</Select.Option>
+                    <Select.Option value="ai-ml">
+                      AI / ML
+                    </Select.Option>
                     <Select.Option value="marketing">
                       Sales & Marketing
+                    </Select.Option>
+                    <Select.Option value="HR">
+                      HR Recruiter
                     </Select.Option>
                   </Select>
                 </Form.Item>

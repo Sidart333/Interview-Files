@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+// UserEntryForm.tsx
+import React, { useState } from "react";
 import {
   Layout,
   Typography,
@@ -7,14 +8,13 @@ import {
   Checkbox,
   Button,
   Card,
-  Spin,
   Space,
   Divider,
   Avatar,
   message,
   theme,
 } from "antd";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   UserOutlined,
   MailOutlined,
@@ -22,9 +22,9 @@ import {
   BookOutlined,
   CheckCircleOutlined,
 } from "@ant-design/icons";
-import { ProgressHeader } from "./ProgressHeader";
 import axios from "axios";
-import bgImage from '../assets/ttp_logo.svg'
+import { ProgressHeader } from "./ProgressHeader";
+import bgImage from "../assets/ttp_logo.svg";
 
 const { Content } = Layout;
 const { Title, Text } = Typography;
@@ -38,81 +38,37 @@ const guidelines = [
   "Log in using the credentials you have been provided.",
 ];
 
-const UserEntryForm = () => {
+interface UserEntryFormProps {
+  token: string;
+  candidate: any;
+}
+
+const UserEntryForm: React.FC<UserEntryFormProps> = ({ token, candidate }) => {
   const [form] = Form.useForm();
   const [agree, setAgree] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  interface CandidateData {
-    name: string;
-    email: string;
-    phone?: string;
-  }
-
-  const [candidateData, setCandidateData] = useState<CandidateData | null>(null);
   const navigate = useNavigate();
-  const { token } = useParams();
   const { token: themeToken } = useToken();
 
-  useEffect(() => {
-    document.getElementById("name")?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (!token) return;
-    const fetchConfig = async () => {
-      try {
-        const res = await axios.get(
-          `http://localhost:5000/get-test-config/${token}`
-        );
-        setCandidateData(res.data as CandidateData);
-        setLoading(false);
-      } catch (error) {
-        message.error("Failed to load your test configuration");
-      }
-    };
-    fetchConfig();
-  }, [token]);
-
-  const onFinish = (values: any ) => {
+  const onFinish = (values: any) => {
     setSubmitting(true);
-    const fullData = { ...candidateData, ...values };
+    const fullData = { ...candidate, ...values, token };
+    // Make sure your backend expects token in payload!
+    // (If not, you can just do { ...candidate, ...values })
     axios
       .post("http://localhost:5000/save-test-config", fullData)
       .then(() => {
         message.success("Details successfully submitted!");
-        navigate("/calibration/", { replace: true });
+        console.log("Navigating to:", `/calibration/${token}`);
+        navigate(`/calibration/${token}`, { replace: true });
       })
       .catch(() => {
         message.error("Failed to submit details. Please try again later.");
+        setSubmitting(false);
       })
-      .then(() => setSubmitting(false));
   };
 
-  // Simulate progress: e.g., user entry is step 1 of 4
-  // const progressPercent = 25;
-
-  if (loading || !candidateData) {
-    return (
-      <div
-        style={{
-          height: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          background: "#f0f2f5",
-        }}
-      >
-        <Spin size="large" />
-        <Text style={{ marginTop: 16 }}>Loading test configuration...</Text>
-      </div>
-    );
-  }
-
   return (
-    
     <Layout
       style={{
         minHeight: "100vh",
@@ -144,11 +100,10 @@ const UserEntryForm = () => {
           }}
         >
           <ProgressHeader currentStep={0} />
-          {/* Left Side: Progress + Guidelines */}
+          {/* Left Side: Guidelines */}
           <div
             style={{
-              background:
-                "linear-gradient(135deg,#001529 0%, #003a70 100%)",
+              background: "linear-gradient(135deg,#001529 0%, #003a70 100%)",
               color: "#fff",
               width: 260,
               padding: "32px 24px 24px 24px",
@@ -158,7 +113,6 @@ const UserEntryForm = () => {
               borderRight: "1px solid #eaeaea",
             }}
           >
-         
             <Avatar
               size={56}
               style={{
@@ -169,25 +123,29 @@ const UserEntryForm = () => {
               icon={<UserOutlined />}
             />
             <div style={{ marginBottom: 6, fontSize: 18, fontWeight: 600 }}>
-              {candidateData.name}
+              {candidate.name}
             </div>
             <Text style={{ color: "#e0e0e0", fontSize: 13 }}>
-              {candidateData.email}
+              {candidate.email}
             </Text>
-            <Divider style={{ borderColor: "rgba(255,255,255,0.14)", margin: "28px 0 18px 0" }} />
-            <Title level={5} style={{ color: "#fff", marginBottom: 12, letterSpacing: 1 }}>
+            <Divider
+              style={{
+                borderColor: "rgba(255,255,255,0.14)",
+                margin: "28px 0 18px 0",
+              }}
+            />
+            <Title
+              level={5}
+              style={{ color: "#fff", marginBottom: 12, letterSpacing: 1 }}
+            >
               Test Progress
             </Title>
-            {/* <Progress
-              type="circle"
-              percent={progressPercent}
-              size={76}
-              strokeColor="#40a9ff"
-              trailColor="#2c3e50"
-              style={{ marginBottom: 26 }}
-              format={percent => `${percent}%`}
-            /> */}
-            <Divider style={{ borderColor: "rgba(255,255,255,0.11)", margin: "6px 0 18px 0" }} />
+            <Divider
+              style={{
+                borderColor: "rgba(255,255,255,0.11)",
+                margin: "6px 0 18px 0",
+              }}
+            />
             <Title
               level={5}
               style={{
@@ -202,11 +160,7 @@ const UserEntryForm = () => {
               Guidelines
             </Title>
             <div style={{ width: "100%" }}>
-              <Space
-                direction="vertical"
-                size={18}
-                style={{ width: "100%" }}
-              >
+              <Space direction="vertical" size={18} style={{ width: "100%" }}>
                 {guidelines.map((text, idx) => (
                   <div
                     key={idx}
@@ -223,9 +177,7 @@ const UserEntryForm = () => {
                         fontSize: 18,
                       }}
                     />
-                    <Text style={{ color: "#fff", fontSize: 15 }}>
-                      {text}
-                    </Text>
+                    <Text style={{ color: "#fff", fontSize: 15 }}>{text}</Text>
                   </div>
                 ))}
               </Space>
@@ -259,9 +211,9 @@ const UserEntryForm = () => {
               layout="vertical"
               onFinish={onFinish}
               initialValues={{
-                name: candidateData.name,
-                email: candidateData.email,
-                phone: candidateData.phone,
+                name: candidate.name,
+                email: candidate.email,
+                phone: candidate.phone,
               }}
               autoComplete="off"
               style={{ width: "100%", maxWidth: 350 }}
@@ -300,7 +252,10 @@ const UserEntryForm = () => {
                 label="Phone"
                 name="phone"
                 rules={[
-                  { required: true, message: "Please enter your phone number!" },
+                  {
+                    required: true,
+                    message: "Please enter your phone number!",
+                  },
                   { pattern: /^[0-9]+$/, message: "Only numbers allowed" },
                   {
                     min: 10,

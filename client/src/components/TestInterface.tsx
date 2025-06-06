@@ -17,6 +17,7 @@ import QuestionReader from "./QuestionReader";
 import axios from "axios";
 import { ProgressHeader } from "./ProgressHeader";
 import { useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   AudioOutlined,
   CameraOutlined,
@@ -38,6 +39,7 @@ const { Title, Text, Paragraph } = Typography;
 
 const TestInterface: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { token } = useParams<{ token: string }>();
 
 
   const [mainWarning, setMainWarning] = useState<string | null>(null);
@@ -147,7 +149,11 @@ const TestInterface: React.FC = () => {
         try {
           const res = await axios.post(
             "http://localhost:5000/process_frame",
-            { image: base64Image, candidateName: userInfo.name },
+            {
+              image: base64Image,
+              candidateName: userInfo.name,
+              token: token
+            },
             { headers: { "Content-Type": "application/json" } }
           );
           const data: WarningData = res.data as WarningData;

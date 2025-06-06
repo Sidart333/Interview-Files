@@ -1,0 +1,31 @@
+{
+  "candidate": {
+    "name": "Diksha Roy",
+    "role": "HR Recruiter",
+    "experience": "Not specified"
+  },
+  "timestamp": "20250605_151938",
+  "prompt": "You are an AI interviewer. Your candidate's name is Diksha Roy. They are applying for the position of HR Recruiter.\nGenerate exactly 5 technical interview questions numbered 1 through 5. Do NOT include any introduction or conclusion. ONLY provide the numbered questions, one per line, starting with '1. ' and so on. All questions must be technical and directly relevant to the HR Recruiter role.",
+  "responses": [
+    {
+      "question": "What are the key differences between an applicant tracking system (ATS) and a human capital management (HCM) system, and how would you decide which one to use in a recruitment process?",
+      "answer": " Do not know the answer."
+    },
+    {
+      "question": "How would you develop and implement a diversity, equity, and inclusion (DEI) strategy to attract and hire top talent from underrepresented groups, and what metrics would you use to measure its success?",
+      "answer": " Do not know the answer."
+    },
+    {
+      "question": "What is the difference between a job description and a job specification, and how would you use these documents to write a compelling job posting that adheres to employment laws and regulations?",
+      "answer": " Do not know the answer."
+    },
+    {
+      "question": "How would you conduct a thorough and unbiased job analysis to determine the essential duties and responsibilities of a role, and what methods would you use to gather data?",
+      "answer": " Do not know the answer."
+    },
+    {
+      "question": "What is the concept of \"time-to-hire\" and how would you develop a strategy to reduce it while still ensuring that the best candidate is selected for the role, and what metrics would you track to measure the success of this strategy?",
+      "answer": " Do not know the answer."
+    }
+  ]
+}

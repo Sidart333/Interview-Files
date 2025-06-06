@@ -29,7 +29,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useParams } from "react-router-dom";
 import { ProgressHeader } from "./ProgressHeader";
-import  EdgeDots from "./EdgeDots";
+import EdgeDots from "./EdgeDots";
 
 const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
@@ -37,7 +37,7 @@ const { useToken } = theme;
 
 const CAMERA_URL = "http://localhost:5000";
 
-// --- Types for API responses ---
+
 type CalibrationResponse = {
   status: string;
   current_step?: number;
@@ -45,6 +45,10 @@ type CalibrationResponse = {
   steps?: string[];
   instruction?: string;
   message?: string;
+  calibration_data?: {
+    calibrated?: boolean;
+    [key: string]: any;
+  };
 };
 
 const stepDirections = [
@@ -64,6 +68,7 @@ const calibrationStepToDot = [
 ];
 
 const HeadCalibration = () => {
+  const { token } = useParams();
   const [isLoading, setIsLoading] = useState(true);
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [calibrationComplete, setCalibrationComplete] = useState(false);
@@ -77,8 +82,28 @@ const HeadCalibration = () => {
   const streamRef = useRef<MediaStream | null>(null);
 
   const navigate = useNavigate();
-  const params = useParams(); // For Fting :token if you use it
+  const params = useParams();
   const { token: themeToken } = useToken();
+
+  // Fetch session-based calibration on mount
+  useEffect(() => {
+    const fetchCalibration = async () => {
+      if (!token) return;
+      try {
+        const res = await axios.post<CalibrationResponse>(`${CAMERA_URL}/get-calibration`, {
+          token,
+        });
+        if (res.data.calibration_data?.calibrated) {
+          setCalibrationComplete(true);
+          message.success("Calibration already completed for this session.");
+        }
+      } catch {
+        // No calibration session exists, proceed as normal
+        setCalibrationComplete(false)
+      }
+    };
+    fetchCalibration();
+  }, [token]);
 
   // Video initialization
   useEffect(() => {
@@ -137,7 +162,6 @@ const HeadCalibration = () => {
     // eslint-disable-next-line
   }, [isCalibrating, currentStepIndex]);
 
-  // Draw the instruction overlay on the canvas
   const drawInstructionOverlay = () => {
     if (!overlayCanvasRef.current || !isCalibrating) return;
     const canvas = overlayCanvasRef.current;
@@ -227,13 +251,22 @@ const HeadCalibration = () => {
     setCurrentStepIndex(0);
     setCurrentInstruction("");
     try {
-      const res = await axios.post<CalibrationResponse>(
-        `${CAMERA_URL}/start_tracking`
+      if (token) {
+        await axios.post<CalibrationResponse>(`${CAMERA_URL}/clear-session`, { token }); // clear any old session
+      }
+      const res = await axios.post(
+        `${CAMERA_URL}/start_tracking`,
+        {
+          token,
+          name: candidateName,
+        },
+        { headers: { "Content-Type": "application/json" } }
       );
-      setCurrentStepIndex(res.data.current_step || 0);
+      const data = res.data as CalibrationResponse;
+      setCurrentStepIndex(data.current_step || 0);
       setCurrentInstruction(
-        res.data.steps?.[0] ||
-          res.data.instruction ||
+        data.steps?.[0] ||
+          data.instruction ||
           "Follow the instructions."
       );
       message.info(
@@ -257,12 +290,10 @@ const HeadCalibration = () => {
     const base64Image = canvas.toDataURL("image/jpeg", 0.8);
 
     try {
-      const res = await axios.post<CalibrationResponse>(
-        `${CAMERA_URL}/advance_calibration`,
-        {
-          image: base64Image,
-        }
-      );
+      const res = await axios.post<CalibrationResponse>(`${CAMERA_URL}/advance_calibration`, {
+        image: base64Image,
+        token,
+      });
       loadingMsg();
       if (res.data.status === "calibration_complete") {
         setCalibrationProgress(100);
@@ -270,6 +301,19 @@ const HeadCalibration = () => {
         setIsCalibrating(false);
         setCurrentInstruction("");
         message.success("Calibration completed!");
+
+        // Save session-based calibration
+        if (token) {
+          try {
+            await axios.post(`${CAMERA_URL}/save-calibration`, {
+              token,
+              calibration_data: res.data.calibration_data, // you can expand this object
+            });
+            message.success("Calibration session saved!");
+          } catch {
+            message.error("Failed to save calibration session.");
+          }
+        }
       } else if (res.data.status === "calibration_in_progress") {
         setCurrentStepIndex(res.data.current_step || 0);
         setCalibrationProgress(
@@ -292,19 +336,27 @@ const HeadCalibration = () => {
     }
   };
 
-  // Restart calibration
-  const restartCalibration = () => {
+  // Restart calibration and clear session
+  const restartCalibration = async () => {
     setIsCalibrating(false);
     setCalibrationComplete(false);
     setCalibrationProgress(0);
     setCurrentStepIndex(0);
     setCurrentInstruction("");
     message.info("Calibration reset. You can start again.");
+
+    if (token) {
+      try {
+        await axios.post(`${CAMERA_URL}/clear-session`, { token });
+        message.info("Calibration session cleared!");
+      } catch {
+        message.warning("Failed to clear calibration session.");
+      }
+    }
   };
 
   // Proceed to test (replace :token with real token if using router param)
   const completeCalibration = () => {
-    // If using /test/:token/interview route, replace :token with actual param
     if (params.token) {
       navigate(`/test/${params.token}/interview`);
     } else {
@@ -312,7 +364,7 @@ const HeadCalibration = () => {
     }
   };
 
-  // UI for camera and calibration status
+  // UI for camera and calibration status (YOUR ORIGINAL CODE REMAINS UNCHANGED BELOW)
   const renderCameraStatus = () => {
     if (isLoading) {
       return (
@@ -384,7 +436,9 @@ const HeadCalibration = () => {
               {currentStepIndex < stepDirections.length ? (
                 <Space>
                   {stepDirections[currentStepIndex]?.icon}
-                  {stepDirections[currentStepIndex]? `Look ${stepDirections[currentStepIndex].text}` : ""}
+                  {stepDirections[currentStepIndex]
+                    ? `Look ${stepDirections[currentStepIndex].text}`
+                    : ""}
                 </Space>
               ) : (
                 currentInstruction
@@ -446,7 +500,7 @@ const HeadCalibration = () => {
       <EdgeDots
         active={
           currentStepIndex === 0
-            ? -1 // or undefined, to show center if you want
+            ? -1
             : calibrationStepToDot[currentStepIndex] ?? undefined
         }
       />
