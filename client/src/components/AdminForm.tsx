@@ -29,9 +29,13 @@ const AdminForm: React.FC = () => {
     setError(null)
     setGeneratedLink(null)
     try {
-      const res = await axios.post<SaveTestConfigResponse>("http://localhost:5000/save-test-config", values, {
-        headers: { "Content-Type": "application/json" }
-      });
+      const res = await axios.post<SaveTestConfigResponse>(
+        " https://680d-103-159-68-90.ngrok-free.app/save-test-config",
+        values,
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
       const { link, emailSent } = res.data;
 
       setGeneratedLink(link)

@@ -1,0 +1,465 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Proctoring System API",
+    "description": "API for proctoring system, including user calibration, real-time proctoring, test administration, and interview assistance.",
+    "version": "1.0"
+  },
+  "paths": {
+    "/process_frame": {
+      "post": {
+        "summary": "Process Video Frame",
+        "description": "Processes a single video frame for real-time cheat detection based on prior calibration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "Base64 encoded image data from the user's webcam."
+                  },
+                  "candidateName": {
+                    "type": "string",
+                    "description": "The name of the candidate being proctored."
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "The unique session token for the user."
+                  }
+                },
+                "required": ["image", "token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully processed the frame and returned detection alerts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "multiple_faces": {
+                      "type": "boolean"
+                    },
+                    "head_alert": {
+                      "type": "string"
+                    },
+                    "eye_lr_alert": {
+                      "type": "string"
+                    },
+                    "eye_ud_alert": {
+                      "type": "string"
+                    },
+                    "eye_oc_alert": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. Missing data, invalid image, or user not calibrated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Calibration missing for this user"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advance_calibration": {
+      "post": {
+        "summary": "Advance Calibration Step",
+        "description": "Processes an image for a specific calibration step (e.g., looking center, left, right). Returns the next step or completion status.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "byte",
+                    "description": "Base64 encoded image for the current calibration step."
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "The unique session token for the user."
+                  }
+                },
+                "required": ["image", "token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Calibration step processed. Returns current progress or final calibration data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {"type": "string", "example": "calibration_in_progress"},
+                        "current_step": {"type": "integer"},
+                        "total_steps": {"type": "integer"},
+                        "steps": {"type": "array", "items": {"type": "string"}},
+                        "instruction": {"type": "string"}
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {"type": "string", "example": "calibration_complete"},
+                        "current_step": {"type": "integer"},
+                        "total_steps": {"type": "integer"},
+                        "steps": {"type": "array", "items": {"type": "string"}},
+                        "instruction": {"type": "string"},
+                        "calibration_data": {"type": "object"}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. Missing data or calibration not initiated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string", "example": "error"},
+                    "message": {"type": "string", "example": "Missing Image or token"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/save-calibration": {
+      "post": {
+        "summary": "Save Calibration Data",
+        "description": "Saves the final calculated calibration thresholds for a user's session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "The unique session token for the user."
+                  },
+                  "calibration_data": {
+                    "type": "object",
+                    "description": "The calibration data object containing thresholds."
+                  }
+                },
+                "required": ["token", "calibration_data"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Calibration data saved successfully.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean"}}}}}},
+          "400": {"description": "Bad Request. Missing token or data.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean"}, "error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/get-calibration": {
+      "post": {
+        "summary": "Get Calibration Status",
+        "description": "Checks if a user has completed calibration for the given token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {"type": "string", "description": "The unique session token for the user."}
+                },
+                "required": ["token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns the calibration status and data if available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "calibrated": {"type": "boolean"},
+                    "calibration_data": {"type": "object", "description": "Present only if calibrated is true."}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/clear-session": {
+      "post": {
+        "summary": "Clear User Session",
+        "description": "Deletes all server-side data associated with a user's session token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"token": {"type": "string", "description": "The session token to clear."}},
+                "required": ["token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Session cleared successfully.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean", "example": true}}}}}}
+        }
+      }
+    },
+    "/start_tracking": {
+      "post": {
+        "summary": "Start Tracking Session",
+        "description": "Initializes a new tracking and calibration session for a user, identified by the provided token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"token": {"type": "string", "description": "A new unique token for the session."}},
+                "required": ["token"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Tracking session initialized.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean", "example": true}}}}}},
+          "400": {"description": "Bad Request. Missing token.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string", "example": "Missing token"}}}}}}
+        }
+      }
+    },
+    "/transcribe": {
+      "post": {
+        "summary": "Transcribe Audio",
+        "description": "Uploads an audio file and returns the transcribed text.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {"audio": {"type": "string", "format": "binary", "description": "The audio file (e.g., .webm, .mp3) to transcribe."}},
+                "required": ["audio"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Audio transcribed successfully.", "content": {"application/json": {"schema": {"type": "object", "properties": {"transcript": {"type": "string"}, "error": {"type": "string"}}}}}},
+          "400": {"description": "Bad Request. No audio file uploaded.", "content": {"application/json": {"schema": {"type": "object", "properties": {"transcript": {"type": "string"}, "error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/tab-switch": {
+      "post": {
+        "summary": "Log Tab Switch",
+        "description": "Logs a tab switch event for a candidate, updating their warning count.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "candidateName": {"type": "string", "description": "Name of the candidate."},
+                  "tabSwitchCount": {"type": "integer", "description": "The total number of tab switches."}
+                },
+                "required": ["candidateName", "tabSwitchCount"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Tab switch count updated.", "content": {"application/json": {"schema": {"type": "object", "properties": {"message": {"type": "string"}}}}}},
+          "400": {"description": "Bad Request. Missing candidate name.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/tts": {
+      "post": {
+        "summary": "Text-to-Speech",
+        "description": "Converts a string of text into an audio file.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"text": {"type": "string", "description": "The text to be converted to speech."}},
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "An MP3 audio file.", "content": {"audio/mpeg": {"schema": {"type": "string", "format": "binary"}}}},
+          "400": {"description": "Bad Request. No text provided.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}},
+          "500": {"description": "Internal Server Error. TTS generation failed.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/generate-questions": {
+      "post": {
+        "summary": "Generate Interview Questions",
+        "description": "Generates a set of technical interview questions based on the candidate's name and desired role.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "description": "Name of the candidate."},
+                  "role": {"type": "string", "description": "The job role for which to generate questions."},
+                  "numQuestions": {"type": "integer", "description": "Number of questions to generate. Defaults to 3."}
+                },
+                "required": ["name", "role"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Successfully generated questions.", "content": {"application/json": {"schema": {"type": "object", "properties": {"questions": {"type": "array", "items": {"type": "string"}}, "prompt": {"type": "string"}}}}}},
+          "400": {"description": "Bad Request. Missing name or role.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}},
+          "500": {"description": "Internal Server Error. Failed to communicate with the language model.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/save-test-config": {
+      "post": {
+        "summary": "Create and Send Test",
+        "description": "Saves a new test configuration, generates a unique link, and emails it to the candidate.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "description": "Candidate's full name."},
+                  "email": {"type": "string", "format": "email", "description": "Candidate's email address."}
+                },
+                "required": ["name", "email"],
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Test link generated and email sent.", "content": {"application/json": {"schema": {"type": "object", "properties": {"link": {"type": "string", "format": "uri"}, "emailSent": {"type": "boolean"}}}}}}
+        }
+      }
+    },
+    "/get-test-config/{token}": {
+      "get": {
+        "summary": "Get Test Configuration",
+        "description": "Retrieves the test configuration details using the unique test token.",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "description": "The unique token identifying the test.",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {"description": "Test configuration found.", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "404": {"description": "Not Found. The test token is invalid or expired.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/save-responses": {
+      "post": {
+        "summary": "Save Interview Responses",
+        "description": "Saves the candidate's answers to the interview questions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "candidateName": {"type": "string"},
+                  "role": {"type": "string"},
+                  "experience": {"type": "string"},
+                  "prompt": {"type": "string"},
+                  "responses": {"type": "array", "items": {"type": "object"}}
+                },
+                "required": ["candidateName", "responses"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Responses saved successfully.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean"}, "filePath": {"type": "string"}}}}}},
+          "400": {"description": "Bad Request. Invalid data format.", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}}}}}
+        }
+      }
+    },
+    "/submit-feedback": {
+      "post": {
+        "summary": "Submit Feedback",
+        "description": "Allows users to submit feedback about the application.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rating": {"type": "integer", "description": "A numerical rating."},
+                  "comment": {"type": "string", "description": "A text comment."}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Feedback submitted successfully.", "content": {"application/json": {"schema": {"type": "object", "properties": {"success": {"type": "boolean", "example": true}}}}}}
+        }
+      }
+    }
+  }
+}

@@ -13,30 +13,408 @@ import numpy as np
 import base64
 import tempfile
 import whisper
+import zipfile
+import io
 
 OPENAI_API_KEY = "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"
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+
+# Fixed CORS configuration
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://2325-103-159-68-90.ngrok-free.app", "*"],  # Frontend URL
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Access-Control-Allow-Credentials"],
+        "supports_credentials": True
+    }
+})
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 DATA_DIR = "data"
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+INTERVIEWS_DIR = os.path.join(DATA_DIR, "interviews")
+CANDIDATES_DIR = os.path.join(DATA_DIR, "candidates")
+
+# Ensure directories exist
+for directory in [DATA_DIR, INTERVIEWS_DIR, CANDIDATES_DIR]:
+    os.makedirs(directory, exist_ok=True)
 
 user_calibrations = {}   # Holds all per-user state
-
 TESTS_JSON = os.path.join(DATA_DIR, "tests.json")
-
 detector = CheatingDetector()
 
 # Configure Flask-Mail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'siddharthsinghpanwar01@gmail.com'      # Replace with your email
-app.config['MAIL_PASSWORD'] = 'mkuw gipa gjff eagj'         # Use app-specific password
+app.config['MAIL_USERNAME'] = 'siddharthsinghpanwar01@gmail.com'
+app.config['MAIL_PASSWORD'] = 'mkuw gipa gjff eagj'
 app.config['MAIL_DEFAULT_SENDER'] = 'siddharthsinghpanwar01@gmail.com'
 mail = Mail(app)
+
+# Helper functions
+def get_interview_data(token):
+    """Get interview data by token from interviews directory"""
+    interview_file = os.path.join(INTERVIEWS_DIR, f"{token}.json")
+    if not os.path.exists(interview_file):
+        return None
+    
+    with open(interview_file, 'r') as f:
+        return json.load(f)
+
+def save_interview_data(token, data):
+    """Save interview data to interviews directory"""
+    interview_file = os.path.join(INTERVIEWS_DIR, f"{token}.json")
+    with open(interview_file, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def get_candidate_folder(token):
+    """Get candidate folder path"""
+    interview_data = get_interview_data(token)
+    if not interview_data:
+        return None
+    
+    candidate_name = interview_data['candidate']['name']
+    safe_name = candidate_name.replace(' ', '_')
+    return os.path.join(CANDIDATES_DIR, safe_name)
+
+# Simple documentation route
+@app.route('/docs')
+def docs():
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>AI Interview Proctoring System API</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .endpoint { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+            .method { font-weight: bold; color: #fff; padding: 5px 10px; border-radius: 3px; }
+            .get { background: #61affe; }
+            .post { background: #49cc90; }
+            .delete { background: #f93e3e; }
+            code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; }
+        </style>
+    </head>
+    <body>
+        <h1>AI Interview Proctoring System API</h1>
+        <p>Complete API for managing AI-powered interview sessions with proctoring capabilities</p>
+        
+        <h2>🎯 Interview Management</h2>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/interviews</code>
+            <p>Get all interview sessions</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/interviews/{token}</code>
+            <p>Get specific interview session by token</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method delete">DELETE</span> <code>/api/interviews/{token}</code>
+            <p>Delete interview session and all associated data</p>
+        </div>
+        
+        <h2>👤 Candidate Management</h2>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/candidates/{token}</code>
+            <p>Get candidate information by token</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/candidates/{token}/images</code>
+            <p>Get list of all captured images for candidate</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/candidates/{token}/images/{filename}</code>
+            <p>Download specific captured image</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/candidates/{token}/images/download-all</code>
+            <p>Download all captured images as ZIP file</p>
+        </div>
+        
+        <h2>🔍 Proctoring Reports</h2>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/proctoring/{token}/alerts</code>
+            <p>Get all proctoring alerts for a session</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/proctoring/{token}/report</code>
+            <p>Get comprehensive proctoring report for a session</p>
+        </div>
+        
+        <h2>📊 System Reports</h2>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/reports/summary</code>
+            <p>Get overall system summary and statistics</p>
+        </div>
+        
+        <div class="endpoint">
+            <span class="method get">GET</span> <code>/api/reports/export/{token}</code>
+            <p>Export complete session report as JSON file</p>
+        </div>
+        
+        <h2>🧪 Test Endpoints</h2>
+        <p>Try these endpoints:</p>
+        <ul>
+            <li><a href="/api/interviews" target="_blank">View All Interviews</a></li>
+            <li><a href="/api/reports/summary" target="_blank">System Summary</a></li>
+        </ul>
+    </body>
+    </html>
+    '''
+
+# ===== NEW API ENDPOINTS =====
+
+@app.route('/api/interviews', methods=['GET'])
+def get_interviews():
+    """Get all interview sessions"""
+    interviews = []
+    if os.path.exists(INTERVIEWS_DIR):
+        for filename in os.listdir(INTERVIEWS_DIR):
+            if filename.endswith('.json'):
+                token = filename[:-5]  # Remove .json extension
+                interview_data = get_interview_data(token)
+                if interview_data:
+                    interviews.append(interview_data)
+    return jsonify(interviews)
+
+@app.route('/api/interviews/<string:token>', methods=['GET'])
+def get_interview(token):
+    """Get specific interview session by token"""
+    interview_data = get_interview_data(token)
+    if not interview_data:
+        return jsonify({'error': f'Interview with token {token} not found'}), 404
+    return jsonify(interview_data)
+
+@app.route('/api/interviews/<string:token>', methods=['DELETE'])
+def delete_interview(token):
+    """Delete interview session and all associated data"""
+    interview_file = os.path.join(INTERVIEWS_DIR, f"{token}.json")
+    if not os.path.exists(interview_file):
+        return jsonify({'error': f'Interview with token {token} not found'}), 404
+    
+    # Also delete candidate folder if exists
+    candidate_folder = get_candidate_folder(token)
+    if candidate_folder and os.path.exists(candidate_folder):
+        import shutil
+        shutil.rmtree(candidate_folder)
+    
+    os.remove(interview_file)
+    return jsonify({'message': f'Interview {token} and all associated data deleted successfully'}), 200
+
+@app.route('/api/candidates/<string:token>', methods=['GET'])
+def get_candidate(token):
+    """Get candidate information by token"""
+    interview_data = get_interview_data(token)
+    if not interview_data or 'candidate' not in interview_data:
+        return jsonify({'error': f'Candidate with token {token} not found'}), 404
+    return jsonify(interview_data['candidate'])
+
+@app.route('/api/candidates/<string:token>/images', methods=['GET'])
+def get_candidate_images(token):
+    """Get list of all captured images for candidate"""
+    candidate_folder = get_candidate_folder(token)
+    if not candidate_folder or not os.path.exists(candidate_folder):
+        return jsonify({'error': f'No images found for token {token}'}), 404
+    
+    images = []
+    for filename in os.listdir(candidate_folder):
+        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+            file_path = os.path.join(candidate_folder, filename)
+            file_stats = os.stat(file_path)
+            images.append({
+                'filename': filename,
+                'size': file_stats.st_size,
+                'created_at': datetime.datetime.fromtimestamp(file_stats.st_ctime).isoformat(),
+                'download_url': f'/api/candidates/{token}/images/{filename}'
+            })
+    
+    return jsonify({
+        'token': token,
+        'total_images': len(images),
+        'images': images
+    })
+
+@app.route('/api/candidates/<string:token>/images/<string:filename>', methods=['GET'])
+def download_candidate_image(token, filename):
+    """Download specific captured image"""
+    candidate_folder = get_candidate_folder(token)
+    if not candidate_folder:
+        return jsonify({'error': f'Candidate with token {token} not found'}), 404
+    
+    file_path = os.path.join(candidate_folder, filename)
+    if not os.path.exists(file_path):
+        return jsonify({'error': f'Image {filename} not found'}), 404
+    
+    return send_file(file_path, as_attachment=True)
+
+@app.route('/api/candidates/<string:token>/images/download-all', methods=['GET'])
+def download_all_images(token):
+    """Download all captured images as ZIP file"""
+    candidate_folder = get_candidate_folder(token)
+    if not candidate_folder or not os.path.exists(candidate_folder):
+        return jsonify({'error': f'No images found for token {token}'}), 404
+    
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for filename in os.listdir(candidate_folder):
+            if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                file_path = os.path.join(candidate_folder, filename)
+                zip_file.write(file_path, filename)
+    
+    zip_buffer.seek(0)
+    
+    return send_file(
+        io.BytesIO(zip_buffer.read()),
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'candidate_{token}_images.zip'
+    )
+
+@app.route('/api/proctoring/<string:token>/alerts', methods=['GET'])
+def get_proctoring_alerts(token):
+    """Get all proctoring alerts for a session"""
+    candidate_folder = get_candidate_folder(token)
+    if not candidate_folder:
+        return jsonify({'error': f'Session with token {token} not found'}), 404
+    
+    alerts = []
+    warning_file = os.path.join(candidate_folder, "warning_count.json")
+    
+    if os.path.exists(warning_file):
+        with open(warning_file, 'r') as f:
+            warning_data = json.load(f)
+        
+        for alert_type, count in warning_data.items():
+            if count > 0:
+                alerts.append({
+                    'timestamp': datetime.datetime.now().isoformat(),
+                    'alert_type': alert_type,
+                    'count': count,
+                    'severity': 'high' if count > 5 else 'medium' if count > 2 else 'low'
+                })
+    
+    return jsonify({
+        'token': token,
+        'total_alerts': len(alerts),
+        'alerts': alerts
+    })
+
+@app.route('/api/proctoring/<string:token>/report', methods=['GET'])
+def get_proctoring_report(token):
+    """Get comprehensive proctoring report for a session"""
+    candidate_folder = get_candidate_folder(token)
+    if not candidate_folder:
+        return jsonify({'error': f'Session with token {token} not found'}), 404
+    
+    # Get warning data
+    warning_file = os.path.join(candidate_folder, "warning_count.json")
+    alert_breakdown = {}
+    total_alerts = 0
+    
+    if os.path.exists(warning_file):
+        with open(warning_file, 'r') as f:
+            alert_breakdown = json.load(f)
+            total_alerts = sum(alert_breakdown.values())
+    
+    # Count captured images
+    captured_images_count = 0
+    if os.path.exists(candidate_folder):
+        captured_images_count = len([f for f in os.listdir(candidate_folder) 
+                                   if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+    
+    # Calculate suspicion score (0-100)
+    suspicion_score = min(100, (total_alerts * 10) + (alert_breakdown.get('tab_switch_count', 0) * 5))
+    
+    return jsonify({
+        'token': token,
+        'total_alerts': total_alerts,
+        'alert_breakdown': alert_breakdown,
+        'tab_switches': alert_breakdown.get('tab_switch_count', 0),
+        'suspicious_score': suspicion_score,
+        'captured_images_count': captured_images_count
+    })
+
+@app.route('/api/reports/summary', methods=['GET'])
+def get_reports_summary():
+    """Get overall system summary and statistics"""
+    total_interviews = 0
+    total_candidates = 0
+    total_alerts = 0
+    
+    if os.path.exists(INTERVIEWS_DIR):
+        total_interviews = len([f for f in os.listdir(INTERVIEWS_DIR) if f.endswith('.json')])
+    
+    if os.path.exists(CANDIDATES_DIR):
+        total_candidates = len(os.listdir(CANDIDATES_DIR))
+        
+        # Count total alerts across all candidates
+        for candidate_folder in os.listdir(CANDIDATES_DIR):
+            warning_file = os.path.join(CANDIDATES_DIR, candidate_folder, "warning_count.json")
+            if os.path.exists(warning_file):
+                with open(warning_file, 'r') as f:
+                    warning_data = json.load(f)
+                    total_alerts += sum(warning_data.values())
+    
+    return jsonify({
+        'total_interviews': total_interviews,
+        'total_candidates': total_candidates,
+        'total_alerts': total_alerts,
+        'system_status': 'operational',
+        'last_updated': datetime.datetime.now().isoformat()
+    })
+
+@app.route('/api/reports/export/<string:token>', methods=['GET'])
+def export_report(token):
+    """Export complete session report as JSON file"""
+    interview_data = get_interview_data(token)
+    if not interview_data:
+        return jsonify({'error': f'Session with token {token} not found'}), 404
+    
+    # Get proctoring data
+    candidate_folder = get_candidate_folder(token)
+    proctoring_data = {}
+    
+    if candidate_folder:
+        warning_file = os.path.join(candidate_folder, "warning_count.json")
+        if os.path.exists(warning_file):
+            with open(warning_file, 'r') as f:
+                proctoring_data = json.load(f)
+    
+    # Combine all data
+    complete_report = {
+        **interview_data,
+        'proctoring_summary': proctoring_data,
+        'exported_at': datetime.datetime.now().isoformat()
+    }
+    
+    # Return as downloadable JSON file
+    return send_file(
+        io.BytesIO(json.dumps(complete_report, indent=2).encode()),
+        mimetype='application/json',
+        as_attachment=True,
+        download_name=f'interview_report_{token}.json'
+    )
+
+# ===== ALL YOUR EXISTING ENDPOINTS =====
 
 @app.route('/process_frame', methods=['POST'])
 def process_frame_api():
@@ -47,9 +425,6 @@ def process_frame_api():
     
     print("\n--- /process_frame CALLED ---")
     print("Token from request:", token)
-    print("Current user_calibrations dict:")
-    for t, val in user_calibrations.items():
-        print(f"  {t}: {val}")
 
     if not img_data or not token:
         return jsonify({'error': 'No image or token provided'}), 400
@@ -57,7 +432,6 @@ def process_frame_api():
     if "," in img_data:
         img_data = img_data.split(",")[1]
 
-    # Decode image
     try:
         img_array = np.frombuffer(base64.b64decode(img_data), np.uint8)
         frame = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
@@ -68,10 +442,8 @@ def process_frame_api():
     if not user_state or not user_state.get("calibrated") or not user_state.get("thresholds"):
         return jsonify({'error': 'Calibration missing for this user'}), 400
 
-    # Per-user frames_state
     frames_state = user_state.get('frames_state')
     if frames_state is None:
-        # Default initialization for first frame
         frames_state = {
             'left_frames_outside': 0,
             'right_frames_outside': 0,
@@ -101,7 +473,6 @@ def process_frame_api():
         candidate_folder=candidate_folder
     )
 
-    # Save updated state for this user
     user_state['frames_state'] = updated_frames_state
 
     response = {
@@ -112,6 +483,59 @@ def process_frame_api():
         "eye_oc_alert": getattr(detector, "last_eye_oc_alert", ""),
     }
     return jsonify(response)
+
+@app.route('/save-responses', methods=['POST'])
+def save_responses():
+    data = request.json
+    candidateName = data.get("candidateName")
+    role = data.get("role")
+    experience = data.get("experience")
+    prompt = data.get("prompt")
+    responses = data.get("responses")
+    
+    if not candidateName or not responses:
+        return jsonify({"error": "Invalid data format"}), 400
+
+    safe_name = candidateName.replace(' ', '_')
+    candidate_folder = os.path.join("data", "candidates", safe_name)
+    os.makedirs(candidate_folder, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"interview_{safe_name}_{timestamp}.json"
+    filepath = os.path.join(candidate_folder, filename)
+
+    interview_data = {
+        "candidate": {
+            "name": candidateName,
+            "role": role or "Not specified",
+            "experience": experience or "Not specified",
+        },
+        "timestamp": timestamp,
+        "prompt": prompt or "",
+        "responses": responses
+    }
+    
+    # Save to candidate folder (existing behavior)
+    with open(filepath, "w") as f:
+        json.dump(interview_data, f, indent=2)
+    
+    # ALSO save to interviews directory for API access
+    # Try to find token from existing tests.json
+    token = None
+    if os.path.exists(TESTS_JSON):
+        with open(TESTS_JSON, "r") as f:
+            tests = json.load(f)
+        for test in tests:
+            if test.get('name') == candidateName:
+                token = test.get('token')
+                break
+    
+    if token:
+        interview_data['token'] = token
+        interview_data['status'] = 'completed'
+        save_interview_data(token, interview_data)
+    
+    return jsonify({"success": True, "filePath": filepath})
 
 @app.route('/advance_calibration', methods=['POST'])
 def advance_calibration():
@@ -179,26 +603,17 @@ def advance_calibration():
 @app.route('/save-calibration', methods=['POST'])
 def save_calibration():
     data = request.get_json()
-    print("Received /save-calibration data:", data)
     token = data.get('token')
     calibration_data = data.get('calibration_data')
-    print("Token:", token)
-    print("Calibration data:", calibration_data)
+    
     if not token or calibration_data is None:
         return jsonify({'success': False, 'error': 'Missing token or calibration_data'}), 400
-    # Store only in user_calibrations, don't need extra dict
+    
     if token not in user_calibrations:
         user_calibrations[token] = {}
     user_calibrations[token]["calibration_data"] = calibration_data
     user_calibrations[token]["calibrated"] = True
-    print("\n==== All User Calibrations ====")
-    for t, calib in user_calibrations.items():
-        if 'thresholds' in calib:
-            print(f"User token: {t}, Thresholds: {calib['thresholds']}")
-        else:
-            print(f"User token: {t}, Calibration Data: {calib}")
-    print("==============================\n")
-
+    
     return jsonify({'success': True})
 
 @app.route('/get-calibration', methods=['POST'])
@@ -218,10 +633,6 @@ def clear_session():
         del user_calibrations[token]
     return jsonify({'success': True})
 
-@app.route('/show-all-calibrations', methods=['GET'])
-def show_all_calibrations():
-    return jsonify(user_calibrations)
-
 @app.route('/start_tracking', methods=['POST'])
 def start_tracking():
     data = request.get_json()
@@ -229,7 +640,6 @@ def start_tracking():
     if not token:
         return jsonify({'error': 'Missing token'}), 400
 
-    # Initialize state for this user/test session
     user_calibrations[token] = {
         "calibrated": False,
         "calibration_step": 0,
@@ -250,17 +660,16 @@ def start_tracking():
         }
     }
     folder_path = './warnings'
-    detector.clean_images_in_same_folder(folder_path)
-    # detector.start_tracking()  # <-- REMOVED; no longer needed in stateless code
+    if os.path.exists(folder_path):
+        detector.clean_images_in_same_folder(folder_path)
     return jsonify({'success': True})
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe_audio():
     if 'audio' not in request.files:
-        print("No audio uploaded!")
         return jsonify({'transcript': '', 'error': 'No audio uploaded!'}), 400
+    
     audio_file = request.files['audio']
-    print("Received file:", audio_file.filename)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
         audio_file.save(temp_audio)
         temp_audio_path = temp_audio.name
@@ -269,16 +678,14 @@ def transcribe_audio():
     error_msg = ""
     try:
         model = whisper.load_model("base")
-        print(f"Transcribing: {temp_audio_path}")
         result = model.transcribe(temp_audio_path)
-        print("Transcript:", result["text"])
         transcript = result["text"]
     except Exception as e:
-        print("Transcription error:", str(e))
         error_msg = str(e)
     finally:
         if os.path.exists(temp_audio_path):
             os.remove(temp_audio_path)
+    
     return jsonify({'transcript': transcript, 'error': error_msg})
 
 @app.route('/tab-switch', methods=['POST'])
@@ -333,12 +740,10 @@ def generate_questions():
     data = request.get_json()
     name = data.get('name')
     role = data.get('role')
-    num_questions = data.get('numQuestions', 5)
+    num_questions = data.get('numQuestions', 3)
 
     if not name or not role:
         return jsonify({"error": "Missing required fields (name/role)."}), 400
-    if not num_questions:
-        num_questions = 3
 
     prompt = (
         f"You are an AI interviewer. Your candidate's name is {name}. "
@@ -352,7 +757,7 @@ def generate_questions():
     try:
         client = openai.OpenAI(
             base_url="https://api.groq.com/openai/v1",
-            api_key="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"
+            api_key="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"
         )
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -361,18 +766,21 @@ def generate_questions():
         response_text = chat_completion.choices[0].message.content
         question_regex = re.compile(r"^\s*\d+\.\s+(.+)$", re.MULTILINE)
         questions = question_regex.findall(response_text)
+        
         if not questions:
             return jsonify({"error": "No questions generated", "response_text": response_text}), 500
+        
         return jsonify({"questions": questions, "prompt": prompt})
     except Exception as e:
-        print("OpenAI Error:", e)
         return jsonify({"error": f"Failed to generate questions: {e}"}), 500
-    return jsonify({"error": "Unknown error occurred"}), 500
 
 @app.route('/save-test-config', methods=['POST'])
 def save_test_config():
     data = request.get_json()
     token = str(uuid.uuid4())[:8]
+    
+    print(f"Generated token: {token}")
+    
     candidate_name = data.get('name')
     candidate_email = data.get('email')
     test_entry = {"token": token, **data}
@@ -386,7 +794,10 @@ def save_test_config():
     with open(TESTS_JSON, "w") as f:
         json.dump(tests, f, indent=2)
 
-    link = f"http://localhost:5173/user-test/{token}"  # Replace with your domain in prod
+  
+    link = f"https://2325-103-159-68-90.ngrok-free.app/user-test/{token}"  
+    
+    print(f"Generated link: {link}")
 
     email_sent = False
     try:
@@ -410,54 +821,25 @@ def save_test_config():
 def get_test_config(token):
     try: 
         if not os.path.exists(TESTS_JSON):
-            return jsonify ({ "error": "No test data found"}), 404
+            return jsonify({"error": "No test data found"}), 404
         with open(TESTS_JSON, 'r') as f:
             tests = json.load(f)
     except Exception as e:
         print("Error loading tests.json:", e)   
         tests = []
+    
     print("All tokens in tests.json:", [entry["token"] for entry in tests])         
     if not os.path.exists(TESTS_JSON):
-        return jsonify({ "error": "No test data found" }), 404
+        return jsonify({"error": "No test data found"}), 404
+    
     with open(TESTS_JSON, "r") as f:
         tests = json.load(f)
+    
     test_entry = next((entry for entry in tests if entry["token"] == token), None)
     if not test_entry:
-        return jsonify({ "error": "Test not found or expired" }), 404
+        return jsonify({"error": "Test not found or expired"}), 404
+    
     return jsonify(test_entry)
-
-@app.route('/save-responses', methods=['POST'])
-def save_responses():
-    data = request.json
-    candidateName = data.get("candidateName")
-    role = data.get("role")
-    experience = data.get("experience")
-    prompt = data.get("prompt")
-    responses = data.get("responses")
-    safe_name = candidateName.replace(' ', '_')
-    candidate_folder = os.path.join("data", "candidates", safe_name)
-    os.makedirs(candidate_folder, exist_ok=True)
-
-    if not candidateName or not responses:
-        return jsonify({ "error": "Invalid data format" }), 400
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"interview_{safe_name}_{timestamp}.json"
-    filepath = os.path.join(candidate_folder, filename)
-
-    interview_data = {
-        "candidate": {
-            "name": candidateName,
-            "role": role or "Not specified",
-            "experience": experience or "Not specified",
-        },
-        "timestamp": timestamp,
-        "prompt": prompt or "",
-        "responses": responses
-    }
-    with open(filepath, "w") as f:
-        json.dump(interview_data, f, indent=2)
-    return jsonify({ "success": True, "filePath": filepath })
 
 @app.route('/submit-feedback', methods=['POST'])
 def submit_feedback():
@@ -471,15 +853,22 @@ def submit_feedback():
             feedback_list = json.load(f)
     else:
         feedback_list = []
+    
     feedback_entry = {
         "rating": rating,
         "comment": comment,
         "timestamp": datetime.datetime.now().isoformat()
     }
     feedback_list.append(feedback_entry)
+    
     with open(feedback_file, "w") as f:
         json.dump(feedback_list, f, indent=2)
-    return jsonify({ "success": True })
+    
+    return jsonify({"success": True})
+
+@app.route('/show-all-calibrations', methods=['GET'])
+def show_all_calibrations():
+    return jsonify(user_calibrations)
 
 @app.route('/')
 def index():

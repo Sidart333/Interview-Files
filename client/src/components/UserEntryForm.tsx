@@ -56,7 +56,10 @@ const UserEntryForm: React.FC<UserEntryFormProps> = ({ token, candidate }) => {
     // Make sure your backend expects token in payload!
     // (If not, you can just do { ...candidate, ...values })
     axios
-      .post("http://localhost:5000/save-test-config", fullData)
+      .post(
+        " https://680d-103-159-68-90.ngrok-free.app/save-test-config",
+        fullData
+      )
       .then(() => {
         message.success("Details successfully submitted!");
         console.log("Navigating to:", `/calibration/${token}`);
@@ -65,7 +68,7 @@ const UserEntryForm: React.FC<UserEntryFormProps> = ({ token, candidate }) => {
       .catch(() => {
         message.error("Failed to submit details. Please try again later.");
         setSubmitting(false);
-      })
+      });
   };
 
   return (

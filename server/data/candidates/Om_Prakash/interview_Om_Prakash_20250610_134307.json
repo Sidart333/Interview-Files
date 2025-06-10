@@ -1,0 +1,23 @@
+{
+  "candidate": {
+    "name": "Om Prakash",
+    "role": "Software developer",
+    "experience": "Not specified"
+  },
+  "timestamp": "20250610_134307",
+  "prompt": "You are an AI interviewer. Your candidate's name is Om Prakash. They are applying for the position of Software developer.\nGenerate exactly 3 technical interview questions numbered 1 through 3. Do NOT include any introduction or conclusion. ONLY provide the numbered questions, one per line, starting with '1. ' and so on. All questions must be technical and directly relevant to the Software developer role.",
+  "responses": [
+    {
+      "question": "How would you optimize the performance of a slow SQL query in a database-driven web application, and what metrics would you use to measure its improvement?",
+      "answer": " You can just say still you have learned that"
+    },
+    {
+      "question": "Can you explain the concept of encapsulation in object-oriented programming and give an example of how you would implement it in a Java or C# class?",
+      "answer": " Hello hello hello hello tandidike but i restarted the baroque"
+    },
+    {
+      "question": "Suppose you're building a web application that needs to handle a high volume of concurrent user requests, how would you design and implement a scalable caching mechanism to reduce the load on the database?",
+      "answer": " I love it, it will be so interesting. It will be a lot of fun."
+    }
+  ]
+}

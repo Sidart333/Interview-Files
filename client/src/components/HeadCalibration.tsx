@@ -35,7 +35,7 @@ const { Header, Content } = Layout;
 const { Title, Paragraph, Text } = Typography;
 const { useToken } = theme;
 
-const CAMERA_URL = "http://localhost:5000";
+const CAMERA_URL = " https://680d-103-159-68-90.ngrok-free.app";
 
 
 type CalibrationResponse = {
@@ -257,8 +257,7 @@ const HeadCalibration = () => {
       const res = await axios.post(
         `${CAMERA_URL}/start_tracking`,
         {
-          token,
-          name: candidateName,
+          token
         },
         { headers: { "Content-Type": "application/json" } }
       );

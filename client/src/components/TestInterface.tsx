@@ -92,10 +92,13 @@ const TestInterface: React.FC = () => {
             setTabSwitchCount((prev) => {
               const newCount = prev + 1;
               if (userInfo && userInfo.name) {
-                axios.post('http://localhost:5000/tab-switch', {
-                  candidateName: userInfo.name,
-                  tabSwitchCount: newCount,
-                });
+                axios.post(
+                  " https://680d-103-159-68-90.ngrok-free.app/tab-switch",
+                  {
+                    candidateName: userInfo.name,
+                    tabSwitchCount: newCount,
+                  }
+                );
               }
               return newCount;
             })
@@ -148,11 +151,11 @@ const TestInterface: React.FC = () => {
         const base64Image = canvas.toDataURL("image/jpeg", 0.8);
         try {
           const res = await axios.post(
-            "http://localhost:5000/process_frame",
+            " https://680d-103-159-68-90.ngrok-free.app/process_frame",
             {
               image: base64Image,
               candidateName: userInfo.name,
-              token: token
+              token: token,
             },
             { headers: { "Content-Type": "application/json" } }
           );
@@ -191,11 +194,11 @@ const TestInterface: React.FC = () => {
     setIsLoading(true);
     axios
       .post<{ questions: string[]; prompt: string }>(
-        "http://localhost:5000/generate-questions",
+        " https://680d-103-159-68-90.ngrok-free.app/generate-questions",
         {
           name: userInfo.name,
           role: userInfo.role, // You can add more fields if you want
-          numQuestions: 5,
+          numQuestions: 3,
         },
         { headers: { "Content-Type": "application/json" } }
       )
@@ -250,7 +253,7 @@ const TestInterface: React.FC = () => {
       }
       // Use userInfo instead of candidateDetails for saving
       const res = await axios.post<SaveResponsesResponse>(
-        "http://localhost:5000/save-responses",
+        " https://680d-103-159-68-90.ngrok-free.app/save-responses",
         {
           candidateName: userInfo?.name,
           role: userInfo?.role,

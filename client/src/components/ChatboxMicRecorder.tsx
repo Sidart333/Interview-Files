@@ -54,7 +54,7 @@
             const formData = new FormData();
             formData.append("audio", blob, "answer.webm");
             const res = await axios.post<{ transcript: string }>(
-              "http://localhost:5000/transcribe",
+              " https://680d-103-159-68-90.ngrok-free.app/transcribe",
               formData,
               {
                 headers: { "Content-Type": "multipart/form-data" },

@@ -12,11 +12,16 @@ const UserDashboard: React.FC = () => {
   const token = params.token as string;
   const [candidate, setCandidate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
-    axios
-      .get(`http://localhost:5000/get-test-config/${token}`)
+
+    if (!token || token.includes('{') || token.includes('}') || token.length !== 8 || !candidate)
+    setError("invalid token or token missing");
+    setLoading(false);
+    axios.get(
+        ` https://680d-103-159-68-90.ngrok-free.app/get-test-config/${token}`
+      )
       .then((res) => {
         setCandidate(res.data);
         setLoading(false);

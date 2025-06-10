@@ -1,0 +1,23 @@
+{
+  "candidate": {
+    "name": "Abhinav",
+    "role": "AI/ML",
+    "experience": "Not specified"
+  },
+  "timestamp": "20250610_135240",
+  "prompt": "You are an AI interviewer. Your candidate's name is Abhinav. They are applying for the position of AI/ML.\nGenerate exactly 3 technical interview questions numbered 1 through 3. Do NOT include any introduction or conclusion. ONLY provide the numbered questions, one per line, starting with '1. ' and so on. All questions must be technical and directly relevant to the AI/ML role.",
+  "responses": [
+    {
+      "question": "How would you handle the problem of class imbalance in a classification problem, where one class has a significantly larger number of instances than the others, and the model is biased towards the majority class?",
+      "answer": " Do not know the answer of this following question."
+    },
+    {
+      "question": "Suppose you're working on a object detection task using YOLO, and you notice that the model is having difficulty detecting objects at certain scales, what modifications would you make to the model architecture or training pipeline to address this issue?",
+      "answer": " I do not know what is object detection using all your local"
+    },
+    {
+      "question": "Can you explain the concept of adversarial attacks on deep neural networks, and how would you implement a defense mechanism, such as adversarial training or gradient masking, to make a model more resistant to such attacks?",
+      "answer": " I did not know the answer of the following question."
+    }
+  ]
+}
