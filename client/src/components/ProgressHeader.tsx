@@ -2,8 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Steps, Typography, message } from "antd";
 import { CheckCircleOutlined } from "@ant-design/icons";
 
-const { Step } = Steps;
-const { Text, Title } = Typography;
+const { Title } = Typography;
 
 const stepTitles = ["Credentials", "Calibration", "Interview"];
 

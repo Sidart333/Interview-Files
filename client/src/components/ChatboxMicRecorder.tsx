@@ -1,7 +1,7 @@
   import React, { useState, useRef } from "react";
   import { Button, Space, Card, message, Spin } from "antd";
   import WaveformVisualizer from "./WaveformVisualizer";
-  import axios from "axios";
+  import apiService from "../services/apiService";
 
   interface ChatboxMicRecorderProps {
     onAnswer: (answer: string) => void;
@@ -53,14 +53,8 @@
           try {
             const formData = new FormData();
             formData.append("audio", blob, "answer.webm");
-            const res = await axios.post<{ transcript: string }>(
-              " https://680d-103-159-68-90.ngrok-free.app/transcribe",
-              formData,
-              {
-                headers: { "Content-Type": "multipart/form-data" },
-              }
-            );
-            setFinalTranscript(res.data.transcript);
+            const res = await apiService.transcribeAudio(formData);
+            setFinalTranscript(res.transcript);
           } catch (err) {
             messageApi.open({
               type: "error",

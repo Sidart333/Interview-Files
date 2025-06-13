@@ -162,24 +162,59 @@ class CheatingDetector:
         EAR = (p2_minus_p6 + p3_minus_p5) / (2.0 * p1_minus_p4)
         return EAR
 
-    def clean_images_in_same_folder(self, folder_path):
-        image_files = sorted([
-            f for f in os.listdir(folder_path)
-            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif'))
-        ])
-        total_images = len(image_files)
-        if total_images < 25:
-            keep_indices = [0]
-        else:
-            keep_indices = [0, 25]
-        keep_filenames = [image_files[i] for i in keep_indices if i < total_images]
-        for filename in image_files:
-            if filename not in keep_filenames:
-                file_path = os.path.join(folder_path, filename)
-                os.remove(file_path)
-                print(f"Deleted: {filename}")
-            else:
-                print(f"Kept: {filename}")
+    def clean_images_in_folder(self, folder_path, max_images=10):
+        """Clean old images in a specific folder"""
+        try:
+            if not os.path.exists(folder_path):
+                return
+            
+            all_files = os.listdir(folder_path)
+            image_files = []
+            
+            for f in all_files:
+                if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')):
+                    try:
+                        file_path = os.path.join(folder_path, f)
+                        mtime = os.path.getmtime(file_path)
+                        image_files.append((f, mtime))
+                    except:
+                        continue
+            
+            # Sort by time (newest first)
+            image_files.sort(key=lambda x: x[1], reverse=True)
+            
+            if len(image_files) <= max_images:
+                return
+            
+            # Delete old files
+            files_to_delete = image_files[max_images:]
+            for filename, _ in files_to_delete:
+                try:
+                    os.remove(os.path.join(folder_path, filename))
+                    print(f"Deleted old image: {filename}")
+                except:
+                    pass
+                    
+        except Exception as e:
+            print(f"Error cleaning folder {folder_path}: {e}")
+
+    def clean_candidate_folders(self, data_dir="data"):
+        """Clean images in all candidate folders"""
+        try:
+            candidates_dir = os.path.join(data_dir, "candidates")
+            if not os.path.exists(candidates_dir):
+                return
+            
+            candidate_folders = [f for f in os.listdir(candidates_dir) 
+                               if os.path.isdir(os.path.join(candidates_dir, f))]
+            
+            for folder_name in candidate_folders:
+                folder_path = os.path.join(candidates_dir, folder_name)
+                self.clean_images_in_folder(folder_path, max_images=10)
+                
+        except Exception as e:
+            print(f"Error cleaning candidate folders: {e}")
+            # Don't raise the exception, just log it to prevent calibration failure
 
     def process_frame(self, frame, calibration_data, thresholds, frames_state, candidate_folder=None):
         # ---- Use dict-based structure for calibration_data ----

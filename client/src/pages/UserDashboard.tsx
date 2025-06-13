@@ -1,8 +1,7 @@
-// UserDashboard.tsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Spin, Typography } from "antd";
-import axios from "axios";
+import apiService from "../services/apiService"; 
 import UserEntryForm from "../components/UserEntryForm";
 
 const { Title } = Typography;
@@ -15,23 +14,34 @@ const UserDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      setError("No token provided");
+      return;
+    }
 
-    if (!token || token.includes('{') || token.includes('}') || token.length !== 8 || !candidate)
-    setError("invalid token or token missing");
-    setLoading(false);
-    axios.get(
-        ` https://680d-103-159-68-90.ngrok-free.app/get-test-config/${token}`
-      )
-      .then((res) => {
-        setCandidate(res.data);
+    const fetchCandidateData = async () => {
+      try {
+        const candidateData = await apiService.getTestConfig(token);
+        setCandidate(candidateData);
+      } catch (error) {
+        console.error("Error fetching candidate data:", error);
+        setError("Failed to load candidate data");
+      } finally {
         setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
+      }
+    };
+
+    fetchCandidateData();
   }, [token]);
 
   if (loading) return <Spin tip="Loading candidate data..." />;
+  if (error)
+    return (
+      <Title level={4} style={{ color: "#ff4d4f" }}>
+        {error}
+      </Title>
+    );
   if (!candidate) return <Title level={4}>Test not found or expired.</Title>;
 
   return <UserEntryForm token={token} candidate={candidate} />;

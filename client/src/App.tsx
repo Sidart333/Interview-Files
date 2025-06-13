@@ -4,6 +4,7 @@ import UserDashboard from "./pages/UserDashboard";
 import TestInterface from "./components/TestInterface";
 import HeadCalibration from "./components/HeadCalibration";   
 import { FeedbackPage } from "./components/FeedbackPage";
+import TestTerminated from "./components/TestTerminated";
 
 const App = () => {
   return (
@@ -13,6 +14,7 @@ const App = () => {
         <Route path="/user-test/:token" element={<UserDashboard />} />
         <Route path="/calibration/:token" element={<HeadCalibration />} />
         <Route path="/test/:token/interview" element={<TestInterface />} />
+        <Route path="/test-terminated" element={<TestTerminated />} />
         <Route path='/feedback' element={<FeedbackPage /> } />
       </Routes>
     </Router>

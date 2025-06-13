@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Row, Col, Card, Typography, Rate, Input, Button, message } from "antd";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import apiService from "../services/apiService";
 const { Title, Paragraph } = Typography;
 const { TextArea } = Input;
 
@@ -17,10 +17,10 @@ export const FeedbackPage: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      await axios.post(
-        "https://680d-103-159-68-90.ngrok-free.app/submit-feedback",
-        { rating, comment }
-      );
+      await apiService.submitFeedback({
+        rating,
+        comment,
+      });
       message.success('Thank you for your feedback.');
     }
     catch (err) {

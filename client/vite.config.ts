@@ -1,17 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+
 export default defineConfig({
   plugins: [react()],
   server: {
-     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "http://localhost:5000",
+        target: process.env.VITE_API_BASE_URL || "",
         changeOrigin: true,
-        secure: false, // For HTTPS targets with self-signed certs
+        secure: false, 
         rewrite: (path) => path.replace(/^\/api/, ""),
-        configure: (proxy, options) => {
-          // For websocket support
+        configure: (proxy) => {
           proxy.on("error", (err) => console.error("Proxy error:", err));
           proxy.on("proxyReq", (proxyReq) => {
             console.log("Proxy request to:", proxyReq.path);
@@ -20,4 +19,11 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+  },
+  define: {
+    'process.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || ''),
+  }
 });
